@@ -26,6 +26,7 @@ config_setting(
 
 helpers_toolchain(
     name = "helpers_impl",
+    compare = "//cam/private/detcompare",
     launcher = "//cam/private/launcher",
     swapcheck = "//cam/private/swapcheck",
 )

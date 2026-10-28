@@ -4,7 +4,7 @@
 Load every rule from this file:
 
 ```starlark
-load("@rules_cam//cam:defs.bzl", "swap_test", "tool_toolchain")
+load("@rules_cam//cam:defs.bzl", "determinism_test", "swap_test", "tool_toolchain")
 ```
 
 The rules arrive in milestone M5 (see the issues of
@@ -12,9 +12,11 @@ https://github.com/filmil/bazel_rules_cam). This file is the only public
 entry point; everything under `//cam/private` may change without notice.
 """
 
+load("//cam/private:determinism.bzl", _determinism_test = "determinism_test")
 load("//cam/private:swap_test.bzl", _swap_test = "swap_test")
 load("//cam/private:toolchains.bzl", _tool_toolchain = "tool_toolchain")
 
+determinism_test = _determinism_test
 swap_test = _swap_test
 tool_toolchain = _tool_toolchain
 
