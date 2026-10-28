@@ -1,16 +1,22 @@
 # SPDX-License-Identifier: Apache-2.0
 """Public API of rules_cam.
 
-Load every rule from this file. For now it holds only the API version:
+Load every rule from this file:
 
 ```starlark
-load("@rules_cam//cam:defs.bzl", "RULES_CAM_API_VERSION")
+load("@rules_cam//cam:defs.bzl", "swap_test", "tool_toolchain")
 ```
 
 The rules arrive in milestone M5 (see the issues of
 https://github.com/filmil/bazel_rules_cam). This file is the only public
 entry point; everything under `//cam/private` may change without notice.
 """
+
+load("//cam/private:swap_test.bzl", _swap_test = "swap_test")
+load("//cam/private:toolchains.bzl", _tool_toolchain = "tool_toolchain")
+
+swap_test = _swap_test
+tool_toolchain = _tool_toolchain
 
 # The release this file belongs to. It lets a consumer check, in a test,
 # that the module it resolved is the one it expects.
