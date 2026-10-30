@@ -4,7 +4,7 @@
 [![Publish to my Bazel registry](https://github.com/filmil/bazel_rules_cam/actions/workflows/publish.yml/badge.svg)](https://github.com/filmil/bazel_rules_cam/actions/workflows/publish.yml)
 [![Publish on Bazel Central Registry](https://github.com/filmil/bazel_rules_cam/actions/workflows/publish-bcr.yml/badge.svg)](https://github.com/filmil/bazel_rules_cam/actions/workflows/publish-bcr.yml)
 
-# rules_cam
+# hdlf_rules_cam
 
 Hermetic Bazel rules for machining with FreeCAD CAM.
 The build turns a part's STEP file, a stock, a tool library and an
@@ -22,7 +22,7 @@ Only Linux x86_64 hosts are supported.
 ## Using it
 
 ```starlark
-bazel_dep(name = "rules_cam", version = "0.1.0")
+bazel_dep(name = "hdlf_rules_cam", version = "0.1.0")
 ```
 
 `.bazelrc`, while the module is only in the filmil registry:

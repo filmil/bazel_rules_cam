@@ -118,7 +118,7 @@ jobs:
           if bazel build --host_platform=//tests/platform:macos_arm64 //cam/private/swapdemo:demo > "${HOME}/p1.log" 2>&1; then
             echo "the build succeeded on an unsupported host"; exit 1
           fi
-          grep -F "rules_cam v1 supports only Linux x86_64 hosts" "${HOME}/p1.log"
+          grep -F "hdlf_rules_cam v1 supports only Linux x86_64 hosts" "${HOME}/p1.log"
 
       # Fails when a dependency is only in the filmil registry: the BCR
       # would then reject the module.

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 module(
-    name = "rules_cam",
+    name = "hdlf_rules_cam",
     version = "0.0.0",
     bazel_compatibility = [">=8.0.0"],
 )
