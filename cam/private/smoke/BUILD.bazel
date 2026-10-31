@@ -6,9 +6,9 @@
 # come from the stub, so the rule names no other tool; and a post that the
 # toolchain lacks fails analysis (spec T3).
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
-load("//cam:defs.bzl", "determinism_test", "swap_test")
-load(":smoke.bzl", "freecad_smoke")
-load(":smoke_test.bzl", "unknown_post_test")
+load("//cam:defs.bzl", "determinism_test", "freecad_toolchain", "swap_test")
+load(":smoke.bzl", "freecad_exit_status_test", "freecad_smoke")
+load(":smoke_test.bzl", "bad_posts_test", "unknown_post_test")
 
 [
     freecad_smoke(
@@ -31,10 +31,30 @@ build_test(
     ],
 )
 
-determinism_test(
-    name = "determinism_test",
+[
+    determinism_test(
+        name = post + "_determinism_test",
+        size = "small",
+        target = ":" + post,
+    )
+    for post in [
+        "grbl",
+        "linuxcnc",
+    ]
+]
+
+# freecadcmd exits 0 when a script raises; through freecad_script_args, a
+# script that raises exits 1, sys.exit(3) exits 3, and one that ends
+# normally exits 0 with .pyc writing off.
+freecad_exit_status_test(
+    name = "exit_status_test",
     size = "small",
-    target = ":linuxcnc",
+    cases = {
+        "testdata/exits3.py": "3",
+        "testdata/ok.py": "0",
+        "testdata/raises.py": "1",
+    },
+    checker = "//cam/private/smoke/exitcheck",
 )
 
 swap_test(
@@ -58,3 +78,30 @@ unknown_post_test(
     size = "small",
     target_under_test = ":nosuch",
 )
+
+# Post names the toolchain refuses: a file name, and a path (spec T3).
+[
+    freecad_toolchain(
+        name = "bad_posts_" + name,
+        freecadcmd = "//cam/private/stub",
+        posts = [post],
+        tags = ["manual"],
+        version = "1.1.4",
+    )
+    for name, post in [
+        ("file", "linuxcnc_post.py"),
+        ("path", "scripts/linuxcnc"),
+    ]
+]
+
+[
+    bad_posts_test(
+        name = "bad_posts_%s_test" % name,
+        size = "small",
+        target_under_test = ":bad_posts_" + name,
+    )
+    for name in [
+        "file",
+        "path",
+    ]
+]

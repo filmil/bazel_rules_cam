@@ -104,8 +104,9 @@ var Dropped = []string{
 // host libraries, settings or fonts: FreeCAD's (FREECAD_USER_HOME and the
 // like), Python's (PYTHONPATH, PYTHONHOME), Qt's, the dynamic loader's
 // (LD_LIBRARY_PATH, LD_PRELOAD) and fontconfig's. A toolchain sets the ones
-// it needs with --env.
-var DroppedPrefixes = []string{"FREECAD", "PYTHON", "QT_", "LD_", "FONTCONFIG_", "FC_"}
+// it needs with --env. RUN_TOOL_ ones are the launcher's own: it sets them
+// from its flags, and a host value must not stand in for a missing flag.
+var DroppedPrefixes = []string{"FREECAD", "PYTHON", "QT_", "LD_", "FONTCONFIG_", "FC_", "RUN_TOOL_"}
 
 func dropped(k string, drop map[string]bool) bool {
 	if drop[k] {

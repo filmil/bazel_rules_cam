@@ -141,3 +141,17 @@ func TestRunStdoutToFile(t *testing.T) {
 		t.Errorf("stdout file has %q (%v)", b, err)
 	}
 }
+
+// A host RUN_TOOL_STDOUT does not reach the tool when --stdout is not given:
+// the stub would send that output's record to stdout instead of the file.
+func TestEnvironDropsHostRunToolVariables(t *testing.T) {
+	env := Environ([]string{"RUN_TOOL_STDOUT=/host/out", "RUN_TOOL_OUTPUTS=/host/x"}, "/act/h", "/act", Request{Outputs: []string{"a"}})
+	for _, kv := range env {
+		if strings.HasPrefix(kv, "RUN_TOOL_STDOUT=") {
+			t.Errorf("host %s reached the tool", kv)
+		}
+		if strings.HasPrefix(kv, "RUN_TOOL_OUTPUTS=") && kv != "RUN_TOOL_OUTPUTS=a" {
+			t.Errorf("RUN_TOOL_OUTPUTS is %q, want the flag's \"a\"", kv)
+		}
+	}
+}

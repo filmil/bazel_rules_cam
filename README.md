@@ -42,7 +42,8 @@ nothing. Its tree is the official AppImage, unpacked without running it,
 then pruned to `freecadcmd` and the CAM workbench (169 MB download,
 742 MB unpacked). It runs with no display and loads no host library but
 glibc. Every action gives FreeCAD a private home, and drops the host's
-`PYTHON*`, `QT_*`, `LD_*` and `FREECAD*` variables. FreeCAD's Python
+`PYTHON*`, `QT_*`, `LD_*`, `FREECAD*`, `FONTCONFIG_*` and `FC_*`
+variables. FreeCAD's Python
 ignores `PYTHON*` variables anyway, so scripts run through a bootstrap that
 turns off `.pyc` writing.
 

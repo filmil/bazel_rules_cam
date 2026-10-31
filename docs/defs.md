@@ -5,7 +5,7 @@ Public API of hdlf_rules_cam.
 Load every rule from this file:
 
 ```starlark
-load("@hdlf_rules_cam//cam:defs.bzl", "determinism_test", "freecad_toolchain", "swap_test")
+load("@hdlf_rules_cam//cam:defs.bzl", "determinism_test", "freecad_toolchain", "swap_test", "tool_toolchain")
 ```
 
 The rules arrive in milestone M5 (see the issues of
@@ -50,9 +50,9 @@ toolchain(
 Every action runs freecadcmd through `run_tool`, which gives it a private
 home: `HOME`, the XDG directories and `FREECAD_USER_HOME`,
 `FREECAD_USER_DATA` and `FREECAD_USER_TEMP` all point inside the action
-(spec H3). The launcher drops the host's `PYTHON*`, `QT_*`, `LD_*` and
-`FREECAD*` variables, so FreeCAD's own Python and libraries are the only
-ones it loads.
+(spec H3). The launcher drops the host's `PYTHON*`, `QT_*`, `LD_*`,
+`FREECAD*`, `FONTCONFIG_*` and `FC_*` variables, so FreeCAD's own Python,
+libraries and fonts are the only ones it loads.
 
 **ATTRIBUTES**
 

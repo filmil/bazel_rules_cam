@@ -41,3 +41,59 @@ freecad_smoke = rule(
     },
     toolchains = [_FREECAD] + RUN_TOOL_TOOLCHAINS,
 )
+
+def _runfiles_path(ctx, f):
+    if f.short_path.startswith("../"):
+        return f.short_path[3:]
+    return ctx.workspace_name + "/" + f.short_path
+
+def _exit_status_test_impl(ctx):
+    tc = ctx.toolchains[_FREECAD]
+    cmd = tc.tools["freecadcmd"]
+    cases = []
+    for script, want in ctx.attr.cases.items():
+        f = script.files.to_list()
+        if len(f) != 1:
+            fail("cases: %s is not one file" % script.label)
+        cases.append({
+            "args": freecad_script_args(f[0], path = f[0].short_path),
+            "script": f[0].short_path,
+            "want": int(want),
+        })
+    exe = ctx.actions.declare_file(ctx.label.name)
+    ctx.actions.symlink(output = exe, target_file = ctx.executable.checker, is_executable = True)
+    runfiles = ctx.runfiles(
+        files = ctx.files.cases + [cmd.executable],
+        transitive_files = tc.tool_inputs,
+    ).merge(ctx.attr.checker[DefaultInfo].default_runfiles).merge(cmd.runfiles if hasattr(cmd, "runfiles") else ctx.runfiles())
+    return [
+        DefaultInfo(executable = exe, runfiles = runfiles),
+        RunEnvironmentInfo(environment = {
+            "EXITCHECK_CASES": json.encode(cases),
+            "EXITCHECK_TOOL": _runfiles_path(ctx, cmd.executable),
+        }),
+    ]
+
+freecad_exit_status_test = rule(
+    implementation = _exit_status_test_impl,
+    test = True,
+    doc = """Runs scripts in freecadcmd through freecad_script_args, and checks each exit status.
+
+freecadcmd itself exits 0 when a script raises; the bootstrap must turn
+that into a failure, or an action whose script fails would pass.
+""",
+    attrs = {
+        "cases": attr.label_keyed_string_dict(
+            doc = "Each script, and the exit status it must give.",
+            allow_files = [".py"],
+            mandatory = True,
+        ),
+        "checker": attr.label(
+            doc = "The exitcheck binary.",
+            executable = True,
+            cfg = "target",
+            mandatory = True,
+        ),
+    },
+    toolchains = [_FREECAD],
+)
