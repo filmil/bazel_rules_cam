@@ -1,0 +1,142 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# machine (issue #8): MachineInfo holds the parsed values, and analysis
+# fails, with a message that names the value, on each bad one (spec T3).
+load("//cam:defs.bzl", "machine")
+load(":machine_test.bzl", "machine_fails_test", "machine_info_test")
+
+machine(
+    name = "router",
+    envelope = [
+        "400",
+        "300.5",
+        "75",
+    ],
+    max_feed = "5000",
+    max_spindle = "24000",
+    post = "grbl",
+)
+
+machine_info_test(
+    name = "info_test",
+    size = "small",
+    target_under_test = ":router",
+)
+
+# One line per bad value: name, envelope, max_feed, max_spindle, post, and
+# the message it must fail with.
+[
+    [
+        machine(
+            name = name,
+            envelope = envelope,
+            max_feed = feed,
+            max_spindle = spindle,
+            post = post,
+            tags = ["manual"],
+        ),
+        machine_fails_test(
+            name = name + "_test",
+            size = "small",
+            message = message,
+            target_under_test = ":" + name,
+        ),
+    ]
+    for name, envelope, feed, spindle, post, message in [
+        (
+            "two_axes",
+            [
+                "400",
+                "300",
+            ],
+            "5000",
+            "24000",
+            "grbl",
+            "envelope has 2 values; want 3",
+        ),
+        (
+            "zero_travel",
+            [
+                "400",
+                "0",
+                "75",
+            ],
+            "5000",
+            "24000",
+            "grbl",
+            "envelope \"0\": want a number above 0",
+        ),
+        (
+            "not_a_number",
+            [
+                "400",
+                "300",
+                "75mm",
+            ],
+            "5000",
+            "24000",
+            "grbl",
+            "envelope \"75mm\": want a number above 0",
+        ),
+        (
+            "negative_feed",
+            [
+                "400",
+                "300",
+                "75",
+            ],
+            "-1",
+            "24000",
+            "grbl",
+            "max_feed \"-1\": want a number above 0",
+        ),
+        (
+            "nan_feed",
+            [
+                "400",
+                "300",
+                "75",
+            ],
+            "nan",
+            "24000",
+            "grbl",
+            "max_feed \"nan\": want a number above 0",
+        ),
+        (
+            "fractional_spindle",
+            [
+                "400",
+                "300",
+                "75",
+            ],
+            "5000",
+            "2.4e4",
+            "grbl",
+            "max_spindle \"2.4e4\": want a whole number",
+        ),
+        (
+            "zero_spindle",
+            [
+                "400",
+                "300",
+                "75",
+            ],
+            "5000",
+            "0",
+            "grbl",
+            "max_spindle \"0\": want a whole number of rpm above 0",
+        ),
+        (
+            "unknown_post",
+            [
+                "400",
+                "300",
+                "75",
+            ],
+            "5000",
+            "24000",
+            "nosuch",
+            "post \"nosuch\": the FreeCAD toolchain has ",
+        ),
+    ]
+]

@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0
+load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+# tool_library's checker (issue #8): validates a tool library and writes
+# its canonical form. It runs in actions, through run_tool and the helpers
+# toolchain.
+go_library(
+    name = "toolcheck",
+    srcs = ["toolcheck.go"],
+    importpath = "github.com/filmil/bazel_rules_cam/cam/private/toolcheck",
+    visibility = ["//visibility:private"],
+)
+
+go_test(
+    name = "toolcheck_test",
+    size = "small",
+    srcs = ["toolcheck_test.go"],
+    embed = [":toolcheck"],
+    pure = "on",
+)
+
+go_binary(
+    name = "cmd",
+    srcs = ["cmd/main.go"],
+    pure = "on",
+    visibility = ["//cam/toolchains:__pkg__"],
+    deps = [":toolcheck"],
+)

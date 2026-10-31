@@ -32,6 +32,7 @@ helpers_toolchain(
     compare = "//cam/private/detcompare",
     launcher = "//cam/private/launcher",
     swapcheck = "//cam/private/swapcheck",
+    toolcheck = "//cam/private/toolcheck:cmd",
 )
 
 # The helpers run on Linux x86_64 only in v1 (spec P1). The outputs of the

@@ -1,0 +1,4 @@
+{"tools": [
+  {"number": 1, "name": "3 mm flat end mill", "shape": "endmill", "diameter": 3, "length": 38, "cutting_edge_height": 12, "flutes": 2},
+  {"number": 2, "name": "5 mm drill", "shape": "drill", "diameter": 5, "length": 50, "tip_angle": 118}
+]}

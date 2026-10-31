@@ -5,10 +5,10 @@ It lives under private/ because it calls run_tool. The real rules
 (cam_job) arrive with their own issues.
 """
 
-load("//cam/private:freecad_toolchain.bzl", "freecad_script_args")
+load("//cam/private:freecad_toolchain.bzl", "FREECAD_TOOLCHAIN_TYPE", "freecad_script_args")
 load("//cam/private:run_tool.bzl", "RUN_TOOL_TOOLCHAINS", "run_tool")
 
-_FREECAD = Label("//cam:toolchain_type")
+_FREECAD = FREECAD_TOOLCHAIN_TYPE
 
 def _freecad_smoke_impl(ctx):
     info = ctx.toolchains[_FREECAD].freecad

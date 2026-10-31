@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# tool_library (issue #8): a library comes out sorted by number, with each
+# number written one way, and repeats byte for byte. The checker's own
+# test (//cam/private/toolcheck:toolcheck_test) covers each bad library:
+# unknown keys, missing or foreign dimensions, duplicates, bad numbers.
+# (No swap_test: the checker is this module's own Go, built from source in
+# the helpers toolchain.)
+load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
+load("//cam:defs.bzl", "determinism_test", "tool_library")
+
+tool_library(
+    name = "tools",
+    src = "tools.json",
+)
+
+diff_test(
+    name = "canonical_test",
+    size = "small",
+    file1 = ":tools",
+    file2 = "expected.json",
+)
+
+determinism_test(
+    name = "determinism_test",
+    size = "small",
+    target = ":tools",
+)
