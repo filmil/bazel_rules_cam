@@ -12,11 +12,19 @@ stardoc(
     deps = ["//cam:defs"],
 )
 
+stardoc(
+    name = "extensions_doc",
+    out = "gen.extensions.md",
+    input = "//cam:extensions.bzl",
+    deps = ["//cam:extensions"],
+)
+
 # `bazel run //docs:update_docs` rewrites the .md files; `bazel test //...`
 # fails while one differs from what stardoc writes.
 write_source_files(
     name = "update_docs",
     files = {
         "defs.md": ":defs_doc",
+        "extensions.md": ":extensions_doc",
     },
 )

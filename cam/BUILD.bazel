@@ -15,7 +15,24 @@ toolchain_type(
     visibility = ["//visibility:public"],
 )
 
+bzl_library(
+    name = "extensions",
+    srcs = ["extensions.bzl"],
+    visibility = ["//visibility:public"],
+    deps = ["//cam/private"],
+)
+
+# The toolchain type of FreeCAD (freecadcmd and its tree), which every rule
+# that runs FreeCAD needs.
+toolchain_type(
+    name = "toolchain_type",
+    visibility = ["//visibility:public"],
+)
+
 exports_files(
-    ["defs.bzl"],
+    [
+        "defs.bzl",
+        "extensions.bzl",
+    ],
     visibility = ["//docs:__pkg__"],
 )

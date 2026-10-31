@@ -2,11 +2,13 @@
 #
 # The example consumer. It uses only the public API of hdlf_rules_cam, as a
 # user of the published module would. The e2e pocket job arrives with
-# cam_job (milestone M5).
+# cam_job (milestone M5); until then, the FreeCAD toolchain that the module
+# registers resolves here, with its version and post-processors.
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("@hdlf_rules_cam//cam:defs.bzl", "RULES_CAM_API_VERSION")
+load(":freecad_version.bzl", "freecad_version")
 
 # The public packages load and build: the rules, and the root package
 # with the --@hdlf_rules_cam//:tools flag that every user's build reads.
@@ -36,4 +38,13 @@ diff_test(
     size = "small",
     file1 = ":api_version",
     file2 = "expected_api_version.txt",
+)
+
+freecad_version(name = "freecad_version")
+
+diff_test(
+    name = "freecad_toolchain_test",
+    size = "small",
+    file1 = ":freecad_version",
+    file2 = "expected_freecad.txt",
 )

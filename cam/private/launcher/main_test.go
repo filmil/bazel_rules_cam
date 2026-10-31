@@ -10,14 +10,15 @@ import (
 )
 
 func TestParse(t *testing.T) {
-	r, err := Parse([]string{"--home-env", "KICAD_CONFIG_HOME", "--env", "A=b=c", "--output", "o/x", "--", "tool", "-v", "--", "z"})
+	r, err := Parse([]string{"--home-env", "FREECAD_USER_HOME", "--env", "A=b=c", "--env-abs", "F=x/f.conf", "--output", "o/x", "--stdout", "o/out", "--", "tool", "-v", "--", "z"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.Tool != "tool" || strings.Join(r.Args, " ") != "-v -- z" || r.HomeEnv[0] != "KICAD_CONFIG_HOME" || r.Env[0] != "A=b=c" || r.Outputs[0] != "o/x" {
+	if r.Tool != "tool" || strings.Join(r.Args, " ") != "-v -- z" || r.HomeEnv[0] != "FREECAD_USER_HOME" || r.Env[0] != "A=b=c" ||
+		r.EnvAbs[0] != "F=x/f.conf" || r.Outputs[0] != "o/x" || r.Stdout != "o/out" {
 		t.Errorf("got %+v", r)
 	}
-	for _, bad := range [][]string{{"tool"}, {"--"}, {"--env", "NOEQUALS", "--", "t"}, {"--bogus", "x", "--", "t"}, {"--output"}} {
+	for _, bad := range [][]string{{"tool"}, {"--"}, {"--env", "NOEQUALS", "--", "t"}, {"--env-abs", "F=", "--", "t"}, {"--env-abs", "=p", "--", "t"}, {"--stdout", "", "--", "t"}, {"--stdout", "a", "--stdout", "b", "--", "t"}, {"--bogus", "x", "--", "t"}, {"--output"}} {
 		if _, err := Parse(bad); err == nil {
 			t.Errorf("%q: want an error", bad)
 		}
@@ -25,9 +26,9 @@ func TestParse(t *testing.T) {
 }
 
 func TestEnvironPointsInsideHome(t *testing.T) {
-	r := Request{HomeEnv: []string{"KICAD_CONFIG_HOME"}, Env: []string{"HOME=/never", "X=1"}, Outputs: []string{"a", "b"}}
+	r := Request{HomeEnv: []string{"FREECAD_USER_HOME"}, Env: []string{"HOME=/never", "X=1", "PYTHONDONTWRITEBYTECODE=1"}, EnvAbs: []string{"REL=ext/f.conf", "ABS=/etc/f.conf"}, Outputs: []string{"a", "b"}, Stdout: "b"}
 	env := map[string]string{}
-	for _, kv := range Environ([]string{"HOME=/host/home", "PATH=/bin:/usr/bin", "XDG_CONFIG_HOME=/host/cfg", "DISPLAY=:0", "XDG_RUNTIME_DIR=/run/user/1"}, "/act/h", r) {
+	for _, kv := range Environ([]string{"HOME=/host/home", "PATH=/bin:/usr/bin", "XDG_CONFIG_HOME=/host/cfg", "DISPLAY=:0", "XDG_RUNTIME_DIR=/run/user/1", "PYTHONPATH=/host/py", "PYTHONHOME=/usr", "LD_LIBRARY_PATH=/host/lib", "QT_PLUGIN_PATH=/host/qt", "FREECAD_USER_DATA=/host/fc", "FONTCONFIG_PATH=/etc/fonts", "FC_DEBUG=1"}, "/act/h", "/act", r) {
 		k, v, _ := strings.Cut(kv, "=")
 		env[k] = v
 	}
@@ -35,10 +36,16 @@ func TestEnvironPointsInsideHome(t *testing.T) {
 		"XDG_CONFIG_HOME":   "/act/h/.config",
 		"XDG_CACHE_HOME":    "/act/h/.cache",
 		"TMPDIR":            "/act/h/tmp",
-		"KICAD_CONFIG_HOME": "/act/h/KICAD_CONFIG_HOME",
+		"FREECAD_USER_HOME": "/act/h/FREECAD_USER_HOME",
 		"PATH":              "/bin:/usr/bin",
 		"X":                 "1",
 		"RUN_TOOL_OUTPUTS":  "a\nb",
+		// --env-abs: relative paths resolve against the working directory.
+		"REL": "/act/ext/f.conf",
+		// A fixed --env value passes even with a dropped prefix.
+		"PYTHONDONTWRITEBYTECODE": "1",
+		"RUN_TOOL_STDOUT":     "b",
+		"ABS": "/etc/f.conf",
 		// A fixed --env value wins, even over HOME.
 		"HOME": "/never",
 	} {
@@ -46,7 +53,7 @@ func TestEnvironPointsInsideHome(t *testing.T) {
 			t.Errorf("%s = %q, want %q", k, env[k], want)
 		}
 	}
-	for _, k := range []string{"DISPLAY", "XDG_RUNTIME_DIR"} {
+	for _, k := range []string{"DISPLAY", "XDG_RUNTIME_DIR", "PYTHONPATH", "PYTHONHOME", "LD_LIBRARY_PATH", "QT_PLUGIN_PATH", "FREECAD_USER_DATA", "FONTCONFIG_PATH", "FC_DEBUG"} {
 		if _, ok := env[k]; ok {
 			t.Errorf("%s reached the tool", k)
 		}
@@ -57,6 +64,10 @@ func TestEnvironPointsInsideHome(t *testing.T) {
 // LAUNCHER_TEST_TOOL set, it records what a tool sees and exits 3. No host
 // shell or other host tool is run.
 func TestMain(m *testing.M) {
+	if os.Getenv("LAUNCHER_TEST_TOOL") == "stdout" {
+		os.Stdout.WriteString("to stdout\n")
+		os.Exit(0)
+	}
 	if os.Getenv("LAUNCHER_TEST_TOOL") == "1" {
 		home, cfg, own := os.Getenv("HOME"), os.Getenv("XDG_CONFIG_HOME"), os.Getenv("TOOL_CONFIG")
 		for _, p := range []string{filepath.Join(home, "written"), filepath.Join(cfg, "x"), filepath.Join(own, "y")} {
@@ -110,5 +121,37 @@ func TestRunUsesPrivateHome(t *testing.T) {
 	}
 	if _, err := os.Stat(parts[0]); !os.IsNotExist(err) {
 		t.Errorf("home %s still exists after the run", parts[0])
+	}
+}
+
+// --stdout sends the tool's standard output to a file.
+func TestRunStdoutToFile(t *testing.T) {
+	dir := t.TempDir()
+	self, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(dir, "out.txt")
+	// A relative --stdout is relative to the action directory.
+	code, err := Run(Request{Env: []string{"LAUNCHER_TEST_TOOL=stdout"}, Stdout: "out.txt", Tool: self}, dir)
+	if err != nil || code != 0 {
+		t.Fatalf("code %d, err %v", code, err)
+	}
+	if b, err := os.ReadFile(out); err != nil || string(b) != "to stdout\n" {
+		t.Errorf("stdout file has %q (%v)", b, err)
+	}
+}
+
+// A host RUN_TOOL_STDOUT does not reach the tool when --stdout is not given:
+// the stub would send that output's record to stdout instead of the file.
+func TestEnvironDropsHostRunToolVariables(t *testing.T) {
+	env := Environ([]string{"RUN_TOOL_STDOUT=/host/out", "RUN_TOOL_OUTPUTS=/host/x"}, "/act/h", "/act", Request{Outputs: []string{"a"}})
+	for _, kv := range env {
+		if strings.HasPrefix(kv, "RUN_TOOL_STDOUT=") {
+			t.Errorf("host %s reached the tool", kv)
+		}
+		if strings.HasPrefix(kv, "RUN_TOOL_OUTPUTS=") && kv != "RUN_TOOL_OUTPUTS=a" {
+			t.Errorf("RUN_TOOL_OUTPUTS is %q, want the flag's \"a\"", kv)
+		}
 	}
 }

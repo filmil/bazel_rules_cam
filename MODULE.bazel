@@ -21,6 +21,16 @@ register_toolchains(
     "//cam/toolchains:unsupported",
 )
 
+# FreeCAD itself, prebuilt and pinned by sha256 (cam/private/extensions.bzl).
+freecad = use_extension("//cam:extensions.bzl", "freecad")
+use_repo(freecad, "freecad_toolchains")
+
+register_toolchains(
+    "@freecad_toolchains//:freecad",
+    # swap_test's stand-in for freecadcmd.
+    "//cam/toolchains:freecad_stub",
+)
+
 # The demonstration tools of the swap test template
 # (cam/private/swapdemo) and of determinism_test's own tests
 # (cam/private/detdemo).
