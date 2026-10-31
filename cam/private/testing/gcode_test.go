@@ -40,7 +40,7 @@ func TestPlateGcode(t *testing.T) {
 		for _, m := range toolChange.FindAllStringSubmatch(string(data), -1) {
 			tools[m[1]+m[2]] = true
 		}
-		minZ := 1e9
+		minZ, maxZ := 1e9, -1e9
 		for _, line := range strings.Split(string(data), "\n") {
 			if i := strings.IndexAny(line, "(;"); i >= 0 {
 				line = line[:i]
@@ -57,6 +57,9 @@ func TestPlateGcode(t *testing.T) {
 					if cut && v < minZ {
 						minZ = v
 					}
+					if v > maxZ {
+						maxZ = v
+					}
 				}
 			}
 		}
@@ -71,6 +74,11 @@ func TestPlateGcode(t *testing.T) {
 		}
 		if minZ > 0.001 || minZ < -0.001 {
 			t.Errorf("%s: lowest cut at Z %g; want 0, the part's bottom", path, minZ)
+		}
+		// The clearance height is FreeCAD's 5 mm above the stock's top,
+		// which z_top = 1 puts at 11: this sees the stock margin.
+		if maxZ < 15.999 || maxZ > 16.001 {
+			t.Errorf("%s: highest move at Z %g; want 16, 5 mm above the stock (top margin 1)", path, maxZ)
 		}
 		if regexp.MustCompile(`\d{4}-\d{2}-\d{2}`).Match(data) {
 			t.Errorf("%s: holds a date", path)

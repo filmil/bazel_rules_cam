@@ -54,9 +54,21 @@ DIMENSIONS = {
 # Adaptive.cpp), so its toolpath changes from run to run.
 REFUSED_OPS = {"Path.Op.Adaptive": "Adaptive clearing is not deterministic (it runs on a CPU-time budget)"}
 
-# A comment that holds a date or a time: posts write one into the header,
-# which the runner turns off; any left over is dropped.
-DATED = re.compile(r"^\s*[(;].*(\d{4}-\d{2}-\d{2}|\d{1,2}:\d{2}:\d{2}).*$")
+# A line that is only a comment, and holds a date or a time: posts write
+# one into the header, which the runner turns off; any left over is
+# dropped. The forms: 2026-10-31, 31/10/2026 or 10/31/2026, "Oct 31 2026"
+# or "31 Oct 2026", and 12:34 or 12:34:56.
+_MONTH = r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*"
+DATED = re.compile(r"^\s*(?:\((?P<p>[^()]*)\)|;(?P<s>.*))\s*$")
+DATE_OR_TIME = re.compile(
+    r"\d{4}-\d{2}-\d{2}|\b\d{1,2}/\d{1,2}/\d{2,4}\b|\b" + _MONTH + r"\.? \d{1,2},? \d{4}\b|\b\d{1,2} " + _MONTH + r"\.? \d{4}\b|\b\d{1,2}:\d{2}(?::\d{2})?\b"
+)
+
+
+def dated(line):
+    """Whether a line is only a comment, and holds a date or a time."""
+    m = DATED.match(line)
+    return bool(m) and bool(DATE_OR_TIME.search(m.group("p") or m.group("s") or ""))
 
 
 def load_config():
@@ -104,6 +116,8 @@ def make_tools(doc, job, library):
         bit.Label = t["name"]
         for key, (prop, unit) in DIMENSIONS.items():
             if key in t:
+                if prop not in bit.PropertiesList:
+                    raise JobError("tool %d: FreeCAD's %s bit has no %s (for %s)" % (t["number"], t["shape"], prop, key))
                 setattr(bit, prop, "%r %s" % (float(t[key]), unit))
         if "flutes" in t:
             bit.Flutes = t["flutes"]
@@ -135,6 +149,8 @@ class HeadlessInput:
         return None
 
     def chooseToolController(self, controllers):
+        if not controllers:
+            raise JobError("an operation asked for a tool, and the job has none")
         return min(controllers, key=lambda tc: tc.ToolNumber)
 
     def chooseJob(self, jobs):
@@ -157,36 +173,70 @@ def run_operations(path, job, model, tools):
     fn = g.get("operations")
     if not callable(fn):
         raise JobError("the operations script %s defines no operations(job, model, tools)" % path)
-    fn(job=job, model=model, tools=dict(tools))
+    try:
+        fn(job=job, model=model, tools=dict(tools))
+    except JobError:
+        raise
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        raise JobError("the operations script raised %s: %s" % (type(e).__name__, e))
 
 
 def mm_per_min(q):
     return q.getValueAs("mm/min").Value
 
 
+def base_op(op):
+    """The operation under any dressups: a dressup's Base is the object it
+    wraps, where an operation's Base is a list of (object, faces)."""
+    seen = []
+    while hasattr(getattr(op, "Base", None), "TypeId"):
+        seen.append(op)
+        op = op.Base
+    return op, seen
+
+
+def refuse(job):
+    """Refuses the operations the job cannot vouch for, before any is
+    computed: Adaptive would run, slowly, only to be refused."""
+    problems = []
+    for op in job.Operations.Group:
+        inner, dressups = base_op(op)
+        for o in dressups + [inner]:
+            module = type(o.Proxy).__module__ if getattr(o, "Proxy", None) is not None else ""
+            if module in REFUSED_OPS:
+                problems.append("operation %s: %s; use Pocket or Profile" % (op.Label, REFUSED_OPS[module]))
+    if problems:
+        raise JobError("\n".join(problems))
+
+
 def check(job, tools, machine):
     ops = list(job.Operations.Group)
     if not ops:
         raise JobError("the operations script added no operations")
-    ours = {tc.Name for tc in tools.values()}
+    active = [op for op in ops if getattr(op, "Active", True)]
+    if not active:
+        raise JobError("every operation is inactive; the job would cut nothing")
+    ours = {id(tc) for tc in tools.values()}
     problems = []
-    for op in ops:
-        module = type(op.Proxy).__module__
-        if module in REFUSED_OPS:
-            problems.append("operation %s: %s; use Pocket or Profile" % (op.Label, REFUSED_OPS[module]))
-            continue
-        if not getattr(op, "Active", True):
-            continue
+    users = {}  # id(tool controller) -> labels of the active operations using it
+    for op in active:
+        inner, _ = base_op(op)
         state = getattr(op, "State", ())
         if "Invalid" in state or "Error" in state:
             problems.append("operation %s failed (%s); see FreeCAD's message above" % (op.Label, state))
         if not op.Path.Commands:
             problems.append("operation %s made no toolpath" % op.Label)
-        tc = getattr(op, "ToolController", None)
-        if tc is None or tc.Name not in ours:
+        # A dressup has no tool of its own: the tool is its operation's.
+        tc = getattr(op, "ToolController", None) or getattr(inner, "ToolController", None)
+        if tc is None or id(tc) not in ours:
             problems.append("operation %s uses a tool that is not in the tool library" % op.Label)
+        else:
+            users.setdefault(id(tc), []).append(op.Label)
     for number, tc in sorted(tools.items()):
-        used = [op.Label for op in ops if getattr(op, "ToolController", None) is tc]
+        used = users.get(id(tc))
         if not used:
             continue
         for what, q in (("horizontal feed", tc.HorizFeed), ("vertical feed", tc.VertFeed)):
@@ -195,11 +245,11 @@ def check(job, tools, machine):
                 problems.append("T%d (used by %s): no %s; set it, with units: \"600 mm/min\"" % (number, ", ".join(used), what))
             elif v > machine["max_feed"] + 1e-9:
                 problems.append("T%d: %s %g mm/min is above the machine's %g" % (number, what, v, machine["max_feed"]))
-        s = float(tc.SpindleSpeed)
-        if not s > 0:
+        sp = float(tc.SpindleSpeed)
+        if not sp > 0:
             problems.append("T%d (used by %s): no spindle speed" % (number, ", ".join(used)))
-        elif s > machine["max_spindle"]:
-            problems.append("T%d: spindle %g rpm is above the machine's %d" % (number, s, machine["max_spindle"]))
+        elif sp > machine["max_spindle"]:
+            problems.append("T%d: spindle %g rpm is above the machine's %d" % (number, sp, machine["max_spindle"]))
     if problems:
         raise JobError("\n".join(problems))
 
@@ -214,7 +264,7 @@ def post(job, name):
     if not sections:
         raise JobError("post-processor %s wrote nothing" % name)
     gcode = "".join(g for _, g in sections)
-    lines = [l for l in gcode.splitlines(True) if not DATED.match(l)]
+    lines = [l for l in gcode.splitlines(True) if not dated(l)]
     return "".join(lines)
 
 
@@ -229,7 +279,10 @@ def main():
     set_stock(job, cfg["stock"])
     with open(cfg["tools"]) as f:
         tools = make_tools(doc, job, json.load(f))
+    # The stock and the tools as set, before the script reads them.
+    doc.recompute()
     run_operations(cfg["ops"], job, job.Model.Group[0], tools)
+    refuse(job)
     doc.recompute()
     check(job, tools, cfg["machine"])
     gcode = post(job, cfg["machine"]["post"])

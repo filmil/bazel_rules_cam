@@ -5,6 +5,7 @@ They live under private/ because they call run_tool, and run freecadcmd
 from the FreeCAD toolchain.
 """
 
+load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts")
 load("//cam/private:cam_job.bzl", "CAM_JOB_ATTRS", "cam_job_config")
 load("//cam/private:freecad_toolchain.bzl", "FREECAD_TOOLCHAIN_TYPE", "freecad_script_args")
 load("//cam/private:run_tool.bzl", "RUN_TOOL_TOOLCHAINS", "run_tool")
@@ -93,4 +94,16 @@ no passing test can build, so the test runs the same runner at test time.
         ),
     }),
     toolchains = [FREECAD_TOOLCHAIN_TYPE],
+)
+
+def _fails_impl(ctx):
+    env = analysistest.begin(ctx)
+    asserts.expect_failure(env, ctx.attr.message)
+    return analysistest.end(env)
+
+fails_test = analysistest.make(
+    _fails_impl,
+    expect_failure = True,
+    attrs = {"message": attr.string(mandatory = True)},
+    doc = "Checks that the target fails analysis with `message`.",
 )

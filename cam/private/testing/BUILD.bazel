@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@rules_go//go:def.bzl", "go_test")
 load("//cam:defs.bzl", "cam_job", "determinism_test", "machine", "swap_test", "tool_library")
-load(":testing.bzl", "cam_job_failure_test", "freecad_step")
+load(":testing.bzl", "cam_job_failure_test", "fails_test", "freecad_step")
 
 bzl_library(
     name = "testing",
@@ -24,6 +25,11 @@ freecad_step(
 freecad_step(
     name = "two_parts",
     script = "two_parts.py",
+)
+
+freecad_step(
+    name = "no_solid",
+    script = "no_solid.py",
 )
 
 tool_library(
@@ -67,6 +73,21 @@ tool_library(
         "linuxcnc",
     ]
 ]
+
+# A dressup on a Profile: the job takes it, with its operation's tool.
+cam_job(
+    name = "plate_tagged",
+    machine = ":linuxcnc_router",
+    ops = "tagged_ops.py",
+    part = ":plate",
+    tools = ":tools",
+)
+
+build_test(
+    name = "tagged_test",
+    size = "small",
+    targets = [":plate_tagged"],
+)
 
 go_test(
     name = "gcode_test",
@@ -119,11 +140,56 @@ swap_test(
     )
     for name, part, ops, message in [
         ("adaptive", ":plate", "adaptive_ops.py", "Adaptive clearing is not deterministic"),
+        ("dressed_adaptive", ":plate", "dressed_adaptive_ops.py", "Adaptive clearing is not deterministic"),
         ("too_fast", ":plate", "fast_ops.py", "horizontal feed 9000 mm/min is above the machine's 5000"),
-        ("too_fast_spindle", ":plate", "fast_ops.py", "spindle 30000 rpm is above the machine's 24000"),
+        ("too_fast_plunge", ":plate", "fast_vfeed_ops.py", "vertical feed 6000 mm/min is above the machine's 5000"),
+        ("too_fast_spindle", ":plate", "fast_spindle_ops.py", "spindle 30000 rpm is above the machine's 24000"),
         ("no_feed", ":plate", "no_feed_ops.py", "no horizontal feed; set it, with units"),
+        ("no_spindle", ":plate", "no_spindle_ops.py", "no spindle speed"),
+        ("foreign_tool", ":plate", "foreign_tool_ops.py", "uses a tool that is not in the tool library"),
+        ("all_inactive", ":plate", "inactive_ops.py", "every operation is inactive"),
+        ("raises", ":plate", "raises_ops.py", "the operations script raised ValueError: no such face"),
+        ("no_solid", ":no_solid", "pocket_ops.py", "has 0 solids; a job machines one"),
         ("no_function", ":plate", "no_function_ops.py", "defines no operations(job, model, tools)"),
         ("no_operations", ":plate", "empty_ops.py", "the operations script added no operations"),
         ("two_solids", ":two_parts", "pocket_ops.py", "has 2 solids; a job machines one"),
+    ]
+]
+
+# Stock values the rule refuses at analysis time.
+[
+    [
+        cam_job(
+            name = name,
+            machine = ":grbl_router",
+            ops = "pocket_ops.py",
+            part = ":plate",
+            stock = stock,
+            tags = ["manual"],
+            tools = ":tools",
+        ),
+        fails_test(
+            name = name + "_test",
+            size = "small",
+            message = message,
+            target_under_test = ":" + name,
+        ),
+    ]
+    for name, stock, message in [
+        (
+            "stock_unknown_key",
+            {"z": "1"},
+            "stock key \"z\": want x, y, z_top, z_bottom",
+        ),
+        (
+            "stock_negative",
+            {"x": "-1"},
+            "stock x \"-1\": want a number of mm, 0 or more",
+        ),
+        (
+            "stock_word",
+            {"y": "lots"},
+            "stock y \"lots\": want a number of mm, 0 or more",
+        ),
     ]
 ]

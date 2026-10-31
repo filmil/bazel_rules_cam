@@ -55,6 +55,8 @@ to its FreeCAD tool controller. The script adds FreeCAD CAM operations
 (`Path.Op.*`) to the job, sets each one's `ToolController` (a new
 operation gets the lowest-numbered tool), and sets the feeds and spindle
 speed of each tool it uses. Give feeds with units: a plain number is mm/s.
+A dressup that reads its operation's toolpath (holding tags, say) needs
+`job.Document.recompute()` first.
 
 ```python
 import Path.Op.PocketShape as PocketShape
@@ -83,17 +85,20 @@ def operations(job, model, tools):
 The build fails, naming the problem, when:
 
 * the part has more than one solid, or none;
-* the script defines no `operations`, raises, or adds no operation;
-* an operation is Adaptive: its toolpath changes from run to run, because
-  FreeCAD stops its search on a CPU-time budget;
-* an operation fails, makes no toolpath, or uses a tool that is not in
-  the library;
-* a tool in use has no feed or spindle speed, or one above the machine's
-  `max_feed` or `max_spindle`.
+* the script defines no `operations`, raises (the message names the
+  exception, after its traceback), adds no operation, or turns every one
+  off;
+* an operation is Adaptive, even inside a dressup: its toolpath changes
+  from run to run, because FreeCAD stops its search on a CPU-time budget;
+* an active operation fails, makes no toolpath, or uses a tool that is not
+  in the library (a dressup uses its operation's tool);
+* a tool that an active operation uses has no feed or spindle speed, or
+  one above the machine's `max_feed` or `max_spindle`.
 
-The G-code has no header (it would hold the date and a path), and any
-comment with a date or a time is dropped, so two builds give the same
-bytes. The job does not check the G-code against the machine's envelope:
+The G-code has no header (it would hold the date and a path), and a line
+that is only a comment and holds a date or a time (2026-10-31,
+31/10/2026, Oct 31 2026, 12:34 or 12:34:56) is dropped, so two builds give
+the same bytes. The job does not check the G-code against the machine's envelope:
 `gcode_check_test` does.
 
 A person checks G-code before a machine runs it (rule 7 of this module's
