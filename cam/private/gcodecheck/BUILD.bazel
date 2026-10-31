@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0
+load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+# gcode_check_test's checker (issue #10), built from source: the job's
+# G-code against its machine, stock and tool library.
+go_library(
+    name = "gcodecheck",
+    srcs = ["gcodecheck.go"],
+    importpath = "github.com/filmil/bazel_rules_cam/cam/private/gcodecheck",
+    visibility = ["//visibility:private"],
+)
+
+go_test(
+    name = "gcodecheck_test",
+    size = "small",
+    srcs = ["gcodecheck_test.go"],
+    embed = [":gcodecheck"],
+    pure = "on",
+)
+
+go_binary(
+    name = "cmd",
+    srcs = ["cmd/main.go"],
+    pure = "on",
+    visibility = ["//cam/toolchains:__pkg__"],
+    deps = [":gcodecheck"],
+)

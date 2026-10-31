@@ -29,6 +29,12 @@ toolchain_type(
     visibility = ["//visibility:public"],
 )
 
+# The toolchain type of gcode_check_test's checker.
+toolchain_type(
+    name = "gcode_check_toolchain_type",
+    visibility = ["//visibility:public"],
+)
+
 exports_files(
     [
         "defs.bzl",

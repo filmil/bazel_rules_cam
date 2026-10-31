@@ -29,6 +29,8 @@ register_toolchains(
     "@freecad_toolchains//:freecad",
     # swap_test's stand-in for freecadcmd.
     "//cam/toolchains:freecad_stub",
+    # gcode_check_test's checker.
+    "//cam/toolchains:gcode_check",
 )
 
 # The demonstration tools of the swap test template

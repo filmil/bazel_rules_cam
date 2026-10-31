@@ -10,6 +10,7 @@ bzl_library(
         "determinism.bzl",
         "extensions.bzl",
         "freecad_toolchain.bzl",
+        "gcode_check.bzl",
         "machine.bzl",
         "numbers.bzl",
         "run_tool.bzl",

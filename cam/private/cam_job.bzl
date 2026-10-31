@@ -22,12 +22,24 @@ def _stock(label, stock):
         out[k] = v
     return out
 
-def cam_job_config(ctx, out, path = None):
+CamJobInfo = provider(
+    doc = "A cam_job's G-code and what it was made for.",
+    fields = {
+        "gcode": "File: the G-code.",
+        "info": "File: JSON with the job's stock box, in the G-code's coordinates.",
+        "machine": "The MachineInfo of the job's machine.",
+        "tools": "File: the canonical tool library.",
+    },
+)
+
+def cam_job_config(ctx, out, path = None, info = None):
     """The runner's configuration, as a dict.
 
     Args:
       ctx: a cam_job (or its failure test's) rule context.
       out: the G-code path to write, a string.
+      info: the path to write the job's facts to, a string; next to `out`
+        when None.
       path: a function from `File` to the path the runner sees; the
         execution root path when None.
 
@@ -37,6 +49,7 @@ def cam_job_config(ctx, out, path = None):
     p = path or (lambda f: f.path)
     m = ctx.attr.machine[MachineInfo]
     return {
+        "info": info or (out + ".json"),
         "label": str(ctx.label),
         "machine": {
             "max_feed": m.max_feed,
@@ -52,8 +65,9 @@ def cam_job_config(ctx, out, path = None):
 
 def _cam_job_impl(ctx):
     out = ctx.actions.declare_file(ctx.label.name + ".ngc")
+    info = ctx.actions.declare_file(ctx.label.name + ".ngc.json")
     config = ctx.actions.declare_file(ctx.label.name + ".cam_job.json")
-    ctx.actions.write(config, json.encode_indent(cam_job_config(ctx, out.path)) + "\n")
+    ctx.actions.write(config, json.encode_indent(cam_job_config(ctx, out.path, info = info.path)) + "\n")
     lib = ctx.attr.tools[ToolLibraryInfo].file
     run_tool(
         ctx,
@@ -61,12 +75,20 @@ def _cam_job_impl(ctx):
         "freecadcmd",
         arguments = freecad_script_args(ctx.file._runner),
         inputs = [config, ctx.file.part, ctx.file.ops, lib, ctx.file._runner],
-        outputs = [out],
+        outputs = [out, info],
         path_env = {"CAM_JOB_CONFIG": config},
         mnemonic = "CamJob",
         progress_message = "Making G-code for %{label}",
     )
-    return [DefaultInfo(files = depset([out]))]
+    return [
+        DefaultInfo(files = depset([out])),
+        CamJobInfo(
+            gcode = out,
+            info = info,
+            machine = ctx.attr.machine[MachineInfo],
+            tools = lib,
+        ),
+    ]
 
 CAM_JOB_ATTRS = {
     "part": attr.label(
