@@ -26,9 +26,9 @@ def _machine_impl(ctx):
         fail("machine %s: envelope has %d values; want 3, the X, Y and Z travel in mm" % (name, len(ctx.attr.envelope)))
     x, y, z = [_positive(name, "envelope", t) for t in ctx.attr.envelope]
     feed = _positive(name, "max_feed", ctx.attr.max_feed)
-    spindle = ctx.attr.max_spindle
-    if not spindle.isdigit() or int(spindle) < 1:
-        fail("machine %s: max_spindle %r: want a whole number of rpm above 0" % (name, spindle))
+    spindle = parse_number(ctx.attr.max_spindle)
+    if spindle == None or spindle != int(spindle) or spindle < 1 or spindle > 1000000:
+        fail("machine %s: max_spindle %r: want a whole number of rpm, 1 to 1000000" % (name, ctx.attr.max_spindle))
     posts = ctx.toolchains[FREECAD_TOOLCHAIN_TYPE].freecad.posts
     if ctx.attr.post not in posts:
         fail("machine %s: post %r: the FreeCAD toolchain has %s" % (name, ctx.attr.post, ", ".join(posts)))
@@ -72,7 +72,7 @@ machine(
             mandatory = True,
         ),
         "max_spindle": attr.string(
-            doc = "The highest spindle speed, in rpm: a whole number.",
+            doc = "The highest spindle speed, in rpm: a whole number, 1 to 1000000.",
             mandatory = True,
         ),
         "post": attr.string(

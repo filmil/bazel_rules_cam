@@ -4,7 +4,15 @@
 Load every rule from this file:
 
 ```starlark
-load("@hdlf_rules_cam//cam:defs.bzl", "machine", "tool_library")
+load(
+    "@hdlf_rules_cam//cam:defs.bzl",
+    "determinism_test",
+    "freecad_toolchain",
+    "machine",
+    "swap_test",
+    "tool_library",
+    "tool_toolchain",
+)
 ```
 
 The rules arrive in milestone M5 (see the issues of

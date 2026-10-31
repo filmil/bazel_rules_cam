@@ -8,7 +8,7 @@ go_library(
     name = "toolcheck",
     srcs = ["toolcheck.go"],
     importpath = "github.com/filmil/bazel_rules_cam/cam/private/toolcheck",
-    visibility = ["//visibility:private"],
+    visibility = ["//cam/private/toolcheck:__pkg__"],
 )
 
 go_test(
@@ -24,5 +24,16 @@ go_binary(
     srcs = ["cmd/main.go"],
     pure = "on",
     visibility = ["//cam/toolchains:__pkg__"],
+    deps = [":toolcheck"],
+)
+
+go_test(
+    name = "cmd_test",
+    size = "small",
+    srcs = [
+        "cmd/main.go",
+        "cmd/main_test.go",
+    ],
+    pure = "on",
     deps = [":toolcheck"],
 )

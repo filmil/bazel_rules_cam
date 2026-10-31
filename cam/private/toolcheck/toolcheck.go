@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"sort"
 	"strings"
@@ -83,18 +84,43 @@ func (t *Tool) present() map[string]bool {
 	}
 }
 
-// Parse reads a library strictly: one JSON object, no unknown keys.
+// Parse reads a library strictly: one JSON object, no unknown keys, no
+// null tools, nothing after it.
 func Parse(data []byte) (*Library, error) {
-	d := json.NewDecoder(bytes.NewReader(data))
-	d.DisallowUnknownFields()
-	var l Library
-	if err := d.Decode(&l); err != nil {
-		return nil, fmt.Errorf("not a tool library: %v", err)
+	// First the list as raw values, so a null tool is told apart from an
+	// empty one (encoding/json gives a zero Tool for both).
+	var raw struct {
+		Tools []json.RawMessage `json:"tools"`
 	}
-	if d.More() {
-		return nil, errors.New("not a tool library: more than one JSON value")
+	if err := decodeOne(data, &raw, false); err != nil {
+		return nil, err
+	}
+	for i, t := range raw.Tools {
+		if string(bytes.TrimSpace(t)) == "null" {
+			return nil, fmt.Errorf("not a tool library: tool %d of the list is null", i+1)
+		}
+	}
+	var l Library
+	if err := decodeOne(data, &l, true); err != nil {
+		return nil, err
 	}
 	return &l, nil
+}
+
+// decodeOne decodes exactly one JSON value from data into v.
+func decodeOne(data []byte, v any, strict bool) error {
+	d := json.NewDecoder(bytes.NewReader(data))
+	if strict {
+		d.DisallowUnknownFields()
+	}
+	if err := d.Decode(v); err != nil {
+		return fmt.Errorf("not a tool library: %v", err)
+	}
+	// d.More is false before a stray ] or }, so read one more token.
+	if _, err := d.Token(); err != io.EOF {
+		return errors.New("not a tool library: something follows the JSON object")
+	}
+	return nil
 }
 
 func positive(errs *[]string, who, name string, v *float64) {
@@ -104,7 +130,8 @@ func positive(errs *[]string, who, name string, v *float64) {
 }
 
 // Check returns every problem of the library, one message each, in tool
-// order; none means it is valid.
+// order; none means it is valid. A tool with an unknown shape still gets
+// every check that does not depend on its shape.
 func Check(l *Library) []string {
 	var errs []string
 	if len(l.Tools) == 0 {
@@ -125,37 +152,39 @@ func Check(l *Library) []string {
 			errs = append(errs, fmt.Sprintf("%s: name appears twice", who))
 		}
 		names[t.Name] = true
-		shape, ok := Shapes[t.Shape]
-		if !ok {
-			errs = append(errs, fmt.Sprintf("%s: shape %q; want one of %s", who, t.Shape, strings.Join(ShapeNames(), ", ")))
-			continue
-		}
 		if t.Diameter == nil {
 			errs = append(errs, fmt.Sprintf("%s: no diameter", who))
 		}
 		if t.Length == nil {
 			errs = append(errs, fmt.Sprintf("%s: no length", who))
 		}
-		allowed := map[string]bool{}
-		have := t.present()
-		for _, n := range shape.Need {
-			allowed[n] = true
-			if !have[n] {
-				errs = append(errs, fmt.Sprintf("%s: shape %s needs %s", who, t.Shape, n))
+		// An unknown shape still gets every check that does not depend on
+		// the shape.
+		shape, known := Shapes[t.Shape]
+		if !known {
+			errs = append(errs, fmt.Sprintf("%s: shape %q; want one of %s", who, t.Shape, strings.Join(ShapeNames(), ", ")))
+		} else {
+			allowed := map[string]bool{}
+			have := t.present()
+			for _, n := range shape.Need {
+				allowed[n] = true
+				if !have[n] {
+					errs = append(errs, fmt.Sprintf("%s: shape %s needs %s", who, t.Shape, n))
+				}
 			}
-		}
-		for _, n := range shape.May {
-			allowed[n] = true
-		}
-		var extra []string
-		for n, h := range have {
-			if h && !allowed[n] {
-				extra = append(extra, n)
+			for _, n := range shape.May {
+				allowed[n] = true
 			}
-		}
-		sort.Strings(extra)
-		for _, n := range extra {
-			errs = append(errs, fmt.Sprintf("%s: shape %s has no %s", who, t.Shape, n))
+			var extra []string
+			for n, h := range have {
+				if h && !allowed[n] {
+					extra = append(extra, n)
+				}
+			}
+			sort.Strings(extra)
+			for _, n := range extra {
+				errs = append(errs, fmt.Sprintf("%s: shape %s has no %s", who, t.Shape, n))
+			}
 		}
 		for _, p := range []struct {
 			n string
@@ -181,16 +210,28 @@ func Check(l *Library) []string {
 				errs = append(errs, fmt.Sprintf("%s: %s is %g degrees; want less than 180", who, a.n, *a.v))
 			}
 		}
-		// Dimensions that cannot fit together.
-		if t.Diameter != nil && t.Length != nil {
+		// Dimensions that cannot fit together, checked only once the
+		// diameter and length are themselves good.
+		if t.Diameter != nil && t.Length != nil && *t.Diameter > 0 && *t.Length > 0 {
+			r := *t.Diameter / 2
 			if t.CuttingEdgeHeight != nil && *t.CuttingEdgeHeight > *t.Length {
 				errs = append(errs, fmt.Sprintf("%s: cutting_edge_height %g is more than the length %g", who, *t.CuttingEdgeHeight, *t.Length))
 			}
-			if t.FlatRadius != nil && *t.FlatRadius >= *t.Diameter/2 {
-				errs = append(errs, fmt.Sprintf("%s: flat_radius %g; want less than the radius %g", who, *t.FlatRadius, *t.Diameter/2))
+			if t.FlatRadius != nil && *t.FlatRadius > 0 && *t.FlatRadius >= r {
+				errs = append(errs, fmt.Sprintf("%s: flat_radius %g; want less than the radius %g", who, *t.FlatRadius, r))
 			}
-			if t.TipDiameter != nil && *t.TipDiameter >= *t.Diameter {
+			if t.TipDiameter != nil && *t.TipDiameter >= 0 && *t.TipDiameter >= *t.Diameter {
 				errs = append(errs, fmt.Sprintf("%s: tip_diameter %g; want less than the diameter %g", who, *t.TipDiameter, *t.Diameter))
+			}
+			// The cutting edge holds the tip's own rounding: the ball of a
+			// ballend, the corner radius of a bullnose.
+			if t.CuttingEdgeHeight != nil && *t.CuttingEdgeHeight > 0 {
+				if t.Shape == "ballend" && *t.CuttingEdgeHeight < r {
+					errs = append(errs, fmt.Sprintf("%s: cutting_edge_height %g; want at least the ball's radius %g", who, *t.CuttingEdgeHeight, r))
+				}
+				if t.Shape == "bullnose" && t.FlatRadius != nil && *t.FlatRadius > 0 && *t.FlatRadius < r && *t.CuttingEdgeHeight < r-*t.FlatRadius {
+					errs = append(errs, fmt.Sprintf("%s: cutting_edge_height %g; want at least the corner radius %g", who, *t.CuttingEdgeHeight, r-*t.FlatRadius))
+				}
 			}
 		}
 	}
@@ -202,6 +243,17 @@ func Check(l *Library) []string {
 // shortest exact form, so 3, 3.0 and 3.00 all give 3.
 func Canonical(l *Library) ([]byte, error) {
 	tools := append([]Tool(nil), l.Tools...)
+	for i := range tools {
+		t := &tools[i]
+		// -0 and 0 are one value; JSON would write them apart.
+		for _, p := range []**float64{&t.Diameter, &t.Length, &t.CuttingEdgeHeight, &t.ShankDiameter,
+			&t.FlatRadius, &t.TipAngle, &t.CuttingEdgeAngle, &t.TipDiameter} {
+			if *p != nil && **p == 0 {
+				z := 0.0
+				*p = &z
+			}
+		}
+	}
 	sort.Slice(tools, func(i, j int) bool { return tools[i].Number < tools[j].Number })
 	out, err := json.MarshalIndent(Library{Tools: tools}, "", "  ")
 	if err != nil {

@@ -5,7 +5,15 @@ Public API of hdlf_rules_cam.
 Load every rule from this file:
 
 ```starlark
-load("@hdlf_rules_cam//cam:defs.bzl", "machine", "tool_library")
+load(
+    "@hdlf_rules_cam//cam:defs.bzl",
+    "determinism_test",
+    "freecad_toolchain",
+    "machine",
+    "swap_test",
+    "tool_library",
+    "tool_toolchain",
+)
 ```
 
 The rules arrive in milestone M5 (see the issues of
@@ -105,7 +113,7 @@ machine(
 | <a id="machine-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
 | <a id="machine-envelope"></a>envelope |  The X, Y and Z travel, in mm.   | List of strings | required |  |
 | <a id="machine-max_feed"></a>max_feed |  The highest feed rate, in mm/min.   | String | required |  |
-| <a id="machine-max_spindle"></a>max_spindle |  The highest spindle speed, in rpm: a whole number.   | String | required |  |
+| <a id="machine-max_spindle"></a>max_spindle |  The highest spindle speed, in rpm: a whole number, 1 to 1000000.   | String | required |  |
 | <a id="machine-post"></a>post |  The FreeCAD post-processor for the machine's controller.   | String | required |  |
 
 
@@ -142,11 +150,23 @@ dimensions, in mm and degrees:
 | `vbit`, `chamfer` | `cutting_edge_angle`, `cutting_edge_height`, `tip_diameter` |
 
 Every shape may also have `shank_diameter` and `flutes`. The build fails,
-naming each problem, on an unknown key, a dimension the shape does not
-use or lacks, a duplicate number or name, a number that is not above 0, an
-angle of 180 degrees or more, or dimensions that cannot fit together (a
-cutting edge longer than the tool, say). The output is the library in a
-canonical form: sorted by number, each number written one way.
+naming each problem, on:
+
+* a file that is not one JSON object, an unknown key, an empty list or a
+  null tool;
+* a tool number outside 1 to 999, or one used twice; a name used twice, or
+  with spaces around it;
+* a dimension the shape lacks, or one it does not use;
+* a dimension that is not above 0 (`tip_diameter` may be 0), `flutes`
+  outside 1 to 16, or an angle of 180 degrees or more;
+* dimensions that cannot fit together: a cutting edge longer than the
+  tool, a `flat_radius` of half the diameter or more, a `tip_diameter` of
+  the diameter or more, or a cutting edge shorter than the ball of a
+  `ballend` (half the diameter) or the corner of a `bullnose` (half the
+  diameter less `flat_radius`).
+
+The output is the library in a canonical form: sorted by number, each
+number written one way (`3`, `3.0` and `3.00` all give `3`).
 
 ```starlark
 tool_library(

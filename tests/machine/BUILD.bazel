@@ -13,7 +13,8 @@ machine(
         "75",
     ],
     max_feed = "5000",
-    max_spindle = "24000",
+    # 2.4e4 is a whole number of rpm, in another spelling.
+    max_spindle = "2.4e4",
     post = "grbl",
 )
 
@@ -110,9 +111,9 @@ machine_info_test(
                 "75",
             ],
             "5000",
-            "2.4e4",
+            "2400.5",
             "grbl",
-            "max_spindle \"2.4e4\": want a whole number",
+            "max_spindle \"2400.5\": want a whole number of rpm",
         ),
         (
             "zero_spindle",
@@ -124,7 +125,56 @@ machine_info_test(
             "5000",
             "0",
             "grbl",
-            "max_spindle \"0\": want a whole number of rpm above 0",
+            "max_spindle \"0\": want a whole number of rpm, 1 to 1000000",
+        ),
+        (
+            "four_axes",
+            [
+                "400",
+                "300",
+                "75",
+                "10",
+            ],
+            "5000",
+            "24000",
+            "grbl",
+            "envelope has 4 values; want 3",
+        ),
+        (
+            "negative_spindle",
+            [
+                "400",
+                "300",
+                "75",
+            ],
+            "5000",
+            "-100",
+            "grbl",
+            "max_spindle \"-100\": want a whole number",
+        ),
+        (
+            "word_spindle",
+            [
+                "400",
+                "300",
+                "75",
+            ],
+            "5000",
+            "fast",
+            "grbl",
+            "max_spindle \"fast\": want a whole number",
+        ),
+        (
+            "huge_spindle",
+            [
+                "400",
+                "300",
+                "75",
+            ],
+            "5000",
+            "1e7",
+            "grbl",
+            "max_spindle \"1e7\": want a whole number of rpm, 1 to 1000000",
         ),
         (
             "unknown_post",

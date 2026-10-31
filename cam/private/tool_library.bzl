@@ -55,11 +55,23 @@ dimensions, in mm and degrees:
 | `vbit`, `chamfer` | `cutting_edge_angle`, `cutting_edge_height`, `tip_diameter` |
 
 Every shape may also have `shank_diameter` and `flutes`. The build fails,
-naming each problem, on an unknown key, a dimension the shape does not
-use or lacks, a duplicate number or name, a number that is not above 0, an
-angle of 180 degrees or more, or dimensions that cannot fit together (a
-cutting edge longer than the tool, say). The output is the library in a
-canonical form: sorted by number, each number written one way.
+naming each problem, on:
+
+* a file that is not one JSON object, an unknown key, an empty list or a
+  null tool;
+* a tool number outside 1 to 999, or one used twice; a name used twice, or
+  with spaces around it;
+* a dimension the shape lacks, or one it does not use;
+* a dimension that is not above 0 (`tip_diameter` may be 0), `flutes`
+  outside 1 to 16, or an angle of 180 degrees or more;
+* dimensions that cannot fit together: a cutting edge longer than the
+  tool, a `flat_radius` of half the diameter or more, a `tip_diameter` of
+  the diameter or more, or a cutting edge shorter than the ball of a
+  `ballend` (half the diameter) or the corner of a `bullnose` (half the
+  diameter less `flat_radius`).
+
+The output is the library in a canonical form: sorted by number, each
+number written one way (`3`, `3.0` and `3.00` all give `3`).
 
 ```starlark
 tool_library(
