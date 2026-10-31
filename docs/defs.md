@@ -7,6 +7,7 @@ Load every rule from this file:
 ```starlark
 load(
     "@hdlf_rules_cam//cam:defs.bzl",
+    "cam_job",
     "determinism_test",
     "freecad_toolchain",
     "machine",
@@ -19,6 +20,102 @@ load(
 The rules arrive in milestone M5 (see the issues of
 https://github.com/filmil/bazel_rules_cam). This file is the only public
 entry point; everything under `//cam/private` may change without notice.
+
+<a id="cam_job"></a>
+
+## cam_job
+
+<pre>
+load("@hdlf_rules_cam//cam:defs.bzl", "cam_job")
+
+cam_job(<a href="#cam_job-name">name</a>, <a href="#cam_job-machine">machine</a>, <a href="#cam_job-ops">ops</a>, <a href="#cam_job-part">part</a>, <a href="#cam_job-stock">stock</a>, <a href="#cam_job-tools">tools</a>)
+</pre>
+
+G-code for one part, from FreeCAD's CAM: `<name>.ngc`.
+
+The job takes the part from a STEP file, puts the stock around it, gives
+it the library's tools, and runs the operations script, which adds the
+operations. Then it checks the result and posts it with the machine's
+post-processor.
+
+```starlark
+cam_job(
+    name = "bracket",
+    machine = ":router",
+    ops = "bracket_ops.py",
+    part = ":bracket_step",
+    stock = {"x": "3", "y": "3", "z_top": "1"},
+    tools = ":tools",
+)
+```
+
+The operations script defines `operations(job, model, tools)`. `model` is
+the job's copy of the part; `tools` maps each tool number of the library
+to its FreeCAD tool controller. The script adds FreeCAD CAM operations
+(`Path.Op.*`) to the job, sets each one's `ToolController` (a new
+operation gets the lowest-numbered tool), and sets the feeds and spindle
+speed of each tool it uses. Give feeds with units: a plain number is mm/s.
+A dressup that reads its operation's toolpath (holding tags, say) needs
+`job.Document.recompute()` first.
+
+```python
+import Path.Op.PocketShape as PocketShape
+import Path.Op.Profile as Profile
+
+def operations(job, model, tools):
+    t1 = tools[1]
+    t1.HorizFeed = "600 mm/min"
+    t1.VertFeed = "200 mm/min"
+    t1.SpindleSpeed = 12000
+
+    # The pocket's floor: the flat face at Z 6.
+    floor = [
+        "Face%d" % (i + 1)
+        for i, f in enumerate(model.Shape.Faces)
+        if f.BoundBox.ZLength < 1e-6 and abs(f.BoundBox.ZMin - 6) < 1e-6
+    ]
+    pocket = PocketShape.Create("Pocket", parentJob=job)
+    pocket.ToolController = t1
+    pocket.Base = [(model, floor)]
+
+    profile = Profile.Create("Profile", parentJob=job)
+    profile.ToolController = t1
+```
+
+The build fails, naming the problem, when:
+
+* the part has more than one solid, or none;
+* the script defines no `operations`, raises (the message names the
+  exception, after its traceback), adds no operation, or turns every one
+  off;
+* an operation is Adaptive, even inside a dressup: its toolpath changes
+  from run to run, because FreeCAD stops its search on a CPU-time budget;
+* an active operation fails, makes no toolpath, or uses a tool that is not
+  in the library (a dressup uses its operation's tool);
+* a tool that an active operation uses has no feed or spindle speed, or
+  one above the machine's `max_feed` or `max_spindle`.
+
+The G-code has no header (it would hold the date and a path), and a line
+that is only a comment and holds a date or a time (2026-10-31,
+31/10/2026, Oct 31 2026, 12:34 or 12:34:56) is dropped, so two builds give
+the same bytes. The job does not check the G-code against the machine's envelope:
+`gcode_check_test` does.
+
+A person checks G-code before a machine runs it (rule 7 of this module's
+AGENTS.md).
+
+**ATTRIBUTES**
+
+
+| Name  | Description | Type | Mandatory | Default |
+| :------------- | :------------- | :------------- | :------------- | :------------- |
+| <a id="cam_job-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
+| <a id="cam_job-machine"></a>machine |  The machine (`machine`): its post-processor and limits.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
+| <a id="cam_job-ops"></a>ops |  The operations script: Python that defines `operations(job, model, tools)`.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
+| <a id="cam_job-part"></a>part |  The part, a STEP file with one solid.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
+| <a id="cam_job-stock"></a>stock |  The stock, as margins around the part's bounding box, in mm: `x` and `y` on each side, `z_top` above and `z_bottom` below. A missing key is 0.   | <a href="https://bazel.build/rules/lib/core/dict">Dictionary: String -> String</a> | optional |  `{}`  |
+| <a id="cam_job-tools"></a>tools |  The tool library (`tool_library`).   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
+
 
 <a id="freecad_toolchain"></a>
 
