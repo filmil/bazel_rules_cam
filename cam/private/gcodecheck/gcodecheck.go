@@ -20,11 +20,14 @@
 //     cannot change tools (GRBL) writes the change as a comment, "( M6 T1
 //     )"; that counts too.
 //   - unsupported: G-code this checker does not follow (arcs outside the
-//     XY plane, a coordinate system change), so it cannot vouch for it.
+//     XY plane or in R form, expressions, unknown words), so it cannot
+//     vouch for it.
 //
-// It reads the words posts write: G0 to G3, G17, G20 and G21, G90 and G91,
-// G54 and the like, F, S, T, M3 to M6, X, Y, Z, I, J, K and comments in
-// parentheses or after a semicolon.
+// It reads the words posts write: G0 to G3, the drilling cycles G73 and G81
+// to G83 with R, G98 and G99 and G80, G17, G20 and G21, G90 and G91, G54 and
+// the like, F, S, T, M3 to M6, X, Y, Z, I, J, K and comments in parentheses
+// or after a semicolon. Within a block, units and modes apply to all its
+// words, whatever their order.
 package gcodecheck
 
 import (
@@ -78,213 +81,358 @@ type Result struct {
 
 // Check reads the G-code and returns what it found.
 func Check(gcode string, m Machine, stock Stock, tools map[int]bool) Result {
-	var r Result
+	c := &checker{m: m, stock: stock, tools: tools, motion: -1, absolute: true, scale: 1, used: map[int]bool{}}
 	for i := 0; i < 3; i++ {
-		r.Min[i], r.Max[i] = math.Inf(1), math.Inf(-1)
-	}
-	add := func(kind string, line int, format string, a ...any) {
-		r.Violations = append(r.Violations, Violation{kind, fmt.Sprintf(format, a...), line})
-	}
-	var pos [3]float64
-	var known [3]bool
-	motion, absolute, scale, feed := -1, true, 1.0, 0.0
-	usedTools := map[int]bool{}
-	useTool := func(n, line int) {
-		usedTools[n] = true
-		if !tools[n] {
-			add("tool", line, "T%d is not in the tool library", n)
-		}
-	}
-	extend := func(p [3]float64) {
-		for i := 0; i < 3; i++ {
-			if known[i] {
-				r.Min[i] = math.Min(r.Min[i], p[i])
-				r.Max[i] = math.Max(r.Max[i], p[i])
-			}
-		}
+		c.r.Min[i], c.r.Max[i] = math.Inf(1), math.Inf(-1)
 	}
 	for ln, raw := range strings.Split(gcode, "\n") {
-		line := ln + 1
-		code, comments := splitComments(raw)
-		for _, c := range comments {
-			for _, mt := range commentTool.FindAllStringSubmatch(c, -1) {
-				n, _ := strconv.Atoi(mt[1] + mt[2])
-				useTool(n, line)
-			}
-		}
-		words := word.FindAllStringSubmatch(code, -1)
-		if len(words) == 0 {
-			continue
-		}
-		var target [3]*float64
-		var ij [2]float64
-		hasIJ := false
-		lineMotion := -1
-		for _, w := range words {
-			letter := strings.ToUpper(w[1])
-			v, err := strconv.ParseFloat(w[2], 64)
-			if err != nil {
-				add("unsupported", line, "cannot read %q", w[0])
-				continue
-			}
-			switch letter {
-			case "G":
-				switch g := v; {
-				case g == 0, g == 1, g == 2, g == 3:
-					lineMotion = int(g)
-				case g == 17, g == 40, g == 49, g == 80, g == 94:
-				case g == 18, g == 19:
-					add("unsupported", line, "G%g: arcs outside the XY plane", g)
-				case g == 20:
-					scale = 25.4
-				case g == 21:
-					scale = 1
-				case g == 90:
-					absolute = true
-				case g == 91:
-					absolute = false
-				case g >= 54 && g <= 59.3:
-					// The work offset: positions stay in its coordinates.
-				case g == 43, g == 4:
-					// Tool length offset, dwell: no motion.
-				case g == 81, g == 82, g == 83, g == 73, g == 98, g == 99:
-					// Drilling cycles: their X, Y, Z (and R) are positions.
-					lineMotion = 1
-				default:
-					add("unsupported", line, "G%g", g)
-				}
-			case "X", "Y", "Z":
-				i := int(letter[0] - 'X')
-				x := v * scale
-				target[i] = &x
-			case "R":
-				// A cycle's retract height: a position the tool goes to.
-			case "I", "J":
-				ij[letter[0]-'I'] = v * scale
-				hasIJ = true
-			case "K":
-			case "F":
-				feed = v * scale
-				if feed > m.MaxFeed+eps {
-					add("feed", line, "F%g mm/min is above the machine's %g", feed, m.MaxFeed)
-				}
-			case "S":
-				if v > m.MaxSpindle+eps {
-					add("spindle", line, "S%g rpm is above the machine's %g", v, m.MaxSpindle)
-				}
-			case "T":
-				useTool(int(v), line)
-			case "M", "N", "P", "Q", "H", "D", "L":
-			default:
-				add("unsupported", line, "word %s", w[0])
-			}
-		}
-		if lineMotion >= 0 {
-			motion = lineMotion
-		}
-		if target[0] == nil && target[1] == nil && target[2] == nil {
-			continue
-		}
-		if motion < 0 {
-			add("unsupported", line, "a move before any G0 to G3")
-			continue
-		}
-		from, fromKnown := pos, known
-		for i := 0; i < 3; i++ {
-			if target[i] != nil {
-				if absolute || !known[i] {
-					pos[i] = *target[i]
-				} else {
-					pos[i] += *target[i]
-				}
-				known[i] = true
-			}
-		}
-		r.Moves++
-		if motion != 0 && !(feed > 0) {
-			add("feed", line, "a cutting move with no feed rate")
-		}
-		if motion == 0 && fromKnown[2] && known[2] && fromKnown[0] && fromKnown[1] {
-			rapid(&r, line, from, pos, stock)
-		}
-		extend(pos)
-		if (motion == 2 || motion == 3) && hasIJ && fromKnown[0] && fromKnown[1] {
-			arcExtremes(from, pos, ij, motion == 2, extend)
-		}
+		c.block(ln+1, raw)
 	}
 	axes := "XYZ"
 	for i := 0; i < 3; i++ {
-		if r.Max[i] < r.Min[i] {
+		if c.r.Max[i] < c.r.Min[i] {
 			continue
 		}
-		if span := r.Max[i] - r.Min[i]; span > m.Envelope[i]+eps {
-			r.Violations = append(r.Violations, Violation{"envelope", fmt.Sprintf(
-				"the moves span %.3f mm in %c (%.3f to %.3f); the machine travels %g", span, axes[i], r.Min[i], r.Max[i], m.Envelope[i]), 0})
+		if span := c.r.Max[i] - c.r.Min[i]; span > m.Envelope[i]+eps {
+			c.r.Violations = append(c.r.Violations, Violation{"envelope", fmt.Sprintf(
+				"the moves span %.3f mm in %c (%.3f to %.3f); the machine travels %g", span, axes[i], c.r.Min[i], c.r.Max[i], m.Envelope[i]), 0})
 		}
 	}
-	for n := range usedTools {
-		r.Tools = append(r.Tools, n)
+	for n := range c.used {
+		c.r.Tools = append(c.r.Tools, n)
 	}
-	sort.Ints(r.Tools)
-	return r
+	sort.Ints(c.r.Tools)
+	return c.r
 }
 
-// rapid flags a G0 from a to b that goes down below the stock's top, or
-// across below it, while over the stock.
-func rapid(r *Result, line int, a, b [3]float64, s Stock) {
+type checker struct {
+	r        Result
+	m        Machine
+	stock    Stock
+	tools    map[int]bool
+	pos      [3]float64
+	known    [3]bool
+	motion   int     // 0 to 3, 81 to 83 or 73 (a drilling cycle), -1 none
+	absolute bool    // G90
+	scale    float64 // 1 for mm, 25.4 for inches
+	feed     float64
+	retract  float64 // a cycle's R plane
+	oldZ     bool    // G98: a cycle returns to the Z it started at
+	used     map[int]bool
+}
+
+func (c *checker) add(kind string, line int, format string, a ...any) {
+	c.r.Violations = append(c.r.Violations, Violation{kind, fmt.Sprintf(format, a...), line})
+}
+
+func (c *checker) useTool(n, line int) {
+	c.used[n] = true
+	if !c.tools[n] {
+		c.add("tool", line, "T%d is not in the tool library", n)
+	}
+}
+
+func (c *checker) extend(p [3]float64) {
+	for i := 0; i < 3; i++ {
+		if c.known[i] {
+			c.r.Min[i] = math.Min(c.r.Min[i], p[i])
+			c.r.Max[i] = math.Max(c.r.Max[i], p[i])
+		}
+	}
+}
+
+// block reads one line. Like RS274/NGC, it takes a block's settings
+// (units, distance mode, feed) before its move, whatever the words' order.
+func (c *checker) block(line int, raw string) {
+	code, comments := splitComments(raw)
+	for _, cm := range comments {
+		for _, mt := range commentTool.FindAllStringSubmatch(cm, -1) {
+			n, _ := strconv.Atoi(mt[1] + mt[2])
+			c.useTool(n, line)
+		}
+	}
+	words := word.FindAllStringSubmatchIndex(code, -1)
+	// Text no word covers: an expression, a bare letter, "X1.2.3".
+	rest := []byte(code)
+	for _, w := range words {
+		for k := w[0]; k < w[1]; k++ {
+			rest[k] = ' '
+		}
+	}
+	if left := strings.TrimSpace(string(rest)); left != "" {
+		c.add("unsupported", line, "cannot read %q", left)
+		return
+	}
+	type wv struct {
+		letter string
+		v      float64
+	}
+	var ws []wv
+	for _, w := range words {
+		v, err := strconv.ParseFloat(code[w[4]:w[5]], 64)
+		if err != nil {
+			c.add("unsupported", line, "cannot read %q", code[w[0]:w[1]])
+			return
+		}
+		ws = append(ws, wv{strings.ToUpper(code[w[2]:w[3]]), v})
+	}
+	if len(ws) == 0 {
+		return
+	}
+	// Settings first.
+	lineMotion := -1
+	for _, w := range ws {
+		if w.letter != "G" {
+			continue
+		}
+		switch g := w.v; {
+		case g == 0, g == 1, g == 2, g == 3:
+			lineMotion = int(g)
+		case g == 73, g == 81, g == 82, g == 83:
+			lineMotion = int(g)
+		case g == 80:
+			c.motion = -1
+		case g == 17, g == 40, g == 49, g == 94, g == 43, g == 4:
+		case g >= 54 && g <= 59.3:
+			// The work offset: positions stay in its coordinates.
+		case g == 18, g == 19:
+			c.add("unsupported", line, "G%g: arcs outside the XY plane", g)
+		case g == 20:
+			c.scale = 25.4
+		case g == 21:
+			c.scale = 1
+		case g == 90:
+			c.absolute = true
+		case g == 91:
+			c.absolute = false
+		case g == 98:
+			c.oldZ = true
+		case g == 99:
+			c.oldZ = false
+		default:
+			c.add("unsupported", line, "G%g", g)
+		}
+	}
+	if lineMotion >= 0 {
+		c.motion = lineMotion
+	}
+	var target [3]*float64
+	var ij [2]float64
+	hasIJ, hasR := false, false
+	for _, w := range ws {
+		switch w.letter {
+		case "G":
+		case "X", "Y", "Z":
+			x := w.v * c.scale
+			target[w.letter[0]-'X'] = &x
+		case "I", "J":
+			ij[w.letter[0]-'I'] = w.v * c.scale
+			hasIJ = true
+		case "K":
+		case "R":
+			hasR = true
+			c.retract = w.v * c.scale
+		case "F":
+			c.feed = w.v * c.scale
+			if c.feed > c.m.MaxFeed+eps {
+				c.add("feed", line, "F%g mm/min is above the machine's %g", c.feed, c.m.MaxFeed)
+			}
+		case "S":
+			if w.v > c.m.MaxSpindle+eps {
+				c.add("spindle", line, "S%g rpm is above the machine's %g", w.v, c.m.MaxSpindle)
+			}
+		case "T":
+			c.useTool(int(w.v), line)
+		case "M", "N", "P", "Q", "H", "D", "L":
+		default:
+			c.add("unsupported", line, "word %s", w.letter)
+		}
+	}
+	if target[0] == nil && target[1] == nil && target[2] == nil {
+		return
+	}
+	if c.motion < 0 {
+		c.add("unsupported", line, "a move with no motion mode (G0 to G3, or a drilling cycle)")
+		return
+	}
+	dest, destKnown := c.pos, c.known
+	for i := 0; i < 3; i++ {
+		if target[i] != nil {
+			if c.absolute || !c.known[i] {
+				dest[i] = *target[i]
+			} else {
+				dest[i] += *target[i]
+			}
+			destKnown[i] = true
+		}
+	}
+	switch c.motion {
+	case 0:
+		c.rapid(line, c.pos, c.known, dest)
+		c.moveTo(dest, destKnown)
+	case 1:
+		c.cut(line)
+		c.moveTo(dest, destKnown)
+	case 2, 3:
+		if !hasIJ || hasR {
+			c.add("unsupported", line, "an arc without I and J (an R-form arc)")
+			c.moveTo(dest, destKnown)
+			return
+		}
+		c.cut(line)
+		from, fromKnown := c.pos, c.known
+		c.moveTo(dest, destKnown)
+		if fromKnown[0] && fromKnown[1] {
+			arcExtremes(from, dest, ij, c.motion == 2, c.extend)
+		}
+	default: // a drilling cycle
+		c.drill(line, dest, destKnown)
+	}
+}
+
+func (c *checker) cut(line int) {
+	if !(c.feed > 0) {
+		c.add("feed", line, "a cutting move with no feed rate")
+	}
+}
+
+func (c *checker) moveTo(p [3]float64, known [3]bool) {
+	c.pos, c.known = p, known
+	c.r.Moves++
+	c.extend(p)
+}
+
+// drill follows one hole of a cycle: a rapid across at the start height, a
+// rapid down to R, a feed to the hole's bottom, and back up to R (G99) or
+// the start height (G98).
+func (c *checker) drill(line int, dest [3]float64, known [3]bool) {
+	start := c.pos
+	if !c.known[2] {
+		c.add("unsupported", line, "a drilling cycle from an unknown height")
+		return
+	}
+	bottom := dest[2]
+	above := start
+	above[0], above[1] = dest[0], dest[1]
+	c.rapid(line, start, c.known, above)
+	atR := above
+	atR[2] = c.retract
+	c.rapid(line, above, known, atR)
+	c.cut(line)
+	hole := atR
+	hole[2] = bottom
+	k := known
+	k[2] = true
+	c.moveTo(atR, k)
+	c.moveTo(hole, k)
+	back := hole
+	back[2] = c.retract
+	if c.oldZ {
+		back[2] = math.Max(start[2], c.retract)
+	}
+	c.moveTo(back, k)
+}
+
+// rapid flags a G0 from a to b whose part below the stock's top passes
+// over the stock, unless it goes straight up (out of a cut). From an
+// unknown height, the tool is taken to come from above.
+func (c *checker) rapid(line int, a [3]float64, aKnown [3]bool, b [3]float64) {
+	s := c.stock
 	top := s.ZMax
-	down := b[2] < a[2]-eps
-	across := math.Abs(b[0]-a[0]) > eps || math.Abs(b[1]-a[1]) > eps
-	low := math.Min(a[2], b[2]) < top-eps
-	if !low || !(down || across) {
+	if !aKnown[0] || !aKnown[1] {
+		a[0], a[1] = b[0], b[1]
+	}
+	if !aKnown[2] {
+		a[2] = math.Inf(1)
+	}
+	xyMoves := math.Abs(b[0]-a[0]) > eps || math.Abs(b[1]-a[1]) > eps
+	if !xyMoves && b[2] >= a[2]-eps {
+		return // straight up, or not at all
+	}
+	// The part of the move at or below the stock's top: t in [t0, t1].
+	t0, t1 := 0.0, 1.0
+	za, zb := a[2], b[2]
+	switch {
+	case za >= top-eps && zb >= top-eps:
+		return
+	case math.IsInf(za, 1):
+		t0 = 1 // from above: only the end is low
+	case za < top-eps && zb < top-eps:
+	case za < top-eps:
+		t1 = (top - za) / (zb - za)
+	default:
+		t0 = (za - top) / (za - zb)
+	}
+	p := func(t float64) (float64, float64) {
+		if math.IsInf(za, 1) {
+			return b[0], b[1]
+		}
+		return a[0] + t*(b[0]-a[0]), a[1] + t*(b[1]-a[1])
+	}
+	x0, y0 := p(t0)
+	x1, y1 := p(t1)
+	if !clipHits(x0, y0, x1, y1, s.XMin-eps, s.XMax+eps, s.YMin-eps, s.YMax+eps) {
 		return
 	}
-	if !across && b[2] >= top-eps {
-		return
+	from := "an unknown height"
+	if aKnown[2] {
+		from = fmt.Sprintf("Z %.3f", a[2])
 	}
-	// The segment's XY box against the stock's.
-	if math.Max(a[0], b[0]) < s.XMin-eps || math.Min(a[0], b[0]) > s.XMax+eps ||
-		math.Max(a[1], b[1]) < s.YMin-eps || math.Min(a[1], b[1]) > s.YMax+eps {
-		return
+	c.add("rapid", line, "G0 from %s to Z %.3f over the stock, below its top at Z %.3f", from, b[2], top)
+}
+
+// clipHits says whether the segment (x0,y0)-(x1,y1) meets the rectangle
+// (Liang-Barsky).
+func clipHits(x0, y0, x1, y1, xmin, xmax, ymin, ymax float64) bool {
+	t0, t1 := 0.0, 1.0
+	dx, dy := x1-x0, y1-y0
+	for _, e := range [][2]float64{{-dx, x0 - xmin}, {dx, xmax - x0}, {-dy, y0 - ymin}, {dy, ymax - y0}} {
+		p, q := e[0], e[1]
+		if p == 0 {
+			if q < 0 {
+				return false
+			}
+			continue
+		}
+		r := q / p
+		if p < 0 {
+			t0 = math.Max(t0, r)
+		} else {
+			t1 = math.Min(t1, r)
+		}
+		if t0 > t1 {
+			return false
+		}
 	}
-	r.Violations = append(r.Violations, Violation{"rapid", fmt.Sprintf(
-		"G0 from Z %.3f to Z %.3f over the stock, below its top at Z %.3f", a[2], b[2], top), line})
+	return true
 }
 
 // arcExtremes extends the bounds by the points of an XY arc at 0, 90, 180
-// and 270 degrees that the arc passes.
+// and 270 degrees that the arc passes. A full circle (from = to) passes
+// all four.
 func arcExtremes(from, to [3]float64, ij [2]float64, clockwise bool, extend func([3]float64)) {
 	cx, cy := from[0]+ij[0], from[1]+ij[1]
 	rad := math.Hypot(ij[0], ij[1])
 	a0 := math.Atan2(from[1]-cy, from[0]-cx)
 	a1 := math.Atan2(to[1]-cy, to[0]-cx)
-	sweep := a1 - a0
+	tau := 2 * math.Pi
+	mod := func(x float64) float64 { return math.Mod(math.Mod(x, tau)+tau, tau) }
+	// The sweep, as a positive angle in the arc's own direction.
+	sweep := mod(a1 - a0)
 	if clockwise {
-		for sweep >= 0 {
-			sweep -= 2 * math.Pi
-		}
-	} else {
-		for sweep <= 0 {
-			sweep += 2 * math.Pi
-		}
+		sweep = mod(a0 - a1)
+	}
+	if sweep < 1e-9 {
+		sweep = tau
 	}
 	for k := 0; k < 4; k++ {
 		ang := float64(k) * math.Pi / 2
-		d := ang - a0
+		d := mod(ang - a0)
 		if clockwise {
-			for d > 0 {
-				d -= 2 * math.Pi
-			}
-			if d < sweep {
-				continue
-			}
-		} else {
-			for d < 0 {
-				d += 2 * math.Pi
-			}
-			if d > sweep {
-				continue
-			}
+			d = mod(a0 - ang)
+		}
+		if d > sweep+1e-12 {
+			continue
 		}
 		p := to
 		p[0], p[1] = cx+rad*math.Cos(ang), cy+rad*math.Sin(ang)

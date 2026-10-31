@@ -3,6 +3,7 @@
 package gcodecheck
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -67,7 +68,13 @@ func TestViolations(t *testing.T) {
 		{"envelope", strings.Replace(good, "G0 Z16.000\nM5", "G0 Z70\nM5", 1), "envelope", "span 64.000 mm in Z"},
 		{"inches", "G20\nG0 X0 Y0 Z1\nG0 X5 Y0 Z1\n", "envelope", "span 127.000 mm in X"},
 		{"plane", "G18\nG0 X0 Y0 Z20\n", "unsupported", "arcs outside the XY plane"},
-		{"move first", "X1 Y1 Z20\n", "unsupported", "a move before any G0 to G3"},
+		{"move first", "X1 Y1 Z20\n", "unsupported", "a move with no motion mode"},
+		{"after G80", "G0 X0 Y0 Z20\nG80\nX1 Y1\n", "unsupported", "a move with no motion mode"},
+		{"R arc", "G21\nG0 X0 Y0 Z20\nG2 X10 Y0 R5 F100\n", "unsupported", "an arc without I and J"},
+		{"expression", "G21\nG0 X0 Y0 Z20\n#1=10\n", "unsupported", "cannot read"},
+		{"double decimal", "G21\nG0 X1.2.3 Y0 Z20\n", "unsupported", "cannot read"},
+		{"first rapid into the stock", "G21\nG0 X10 Y10\nG0 Z5\n", "rapid", "G0 from an unknown height to Z 5.000"},
+		{"rapid down, diagonal", "G21\nG0 X50 Y10 Z20\nG0 X30 Y10 Z5\n", "rapid", "G0 from Z 20.000 to Z 5.000"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r := Check(tc.g, machine, stock, tools)
@@ -100,5 +107,64 @@ func TestIncremental(t *testing.T) {
 	r := Check("G21 G90\nG0 X0 Y0 Z20\nG91\nG0 X10\nG0 X10\n", machine, stock, tools)
 	if r.Max[0] != 20 {
 		t.Errorf("max X %g; want 20", r.Max[0])
+	}
+}
+
+// G3 from the third quadrant, through -Y: the arc's lowest point counts.
+func TestG3ThroughMinusY(t *testing.T) {
+	// Centre (20, 15), radius 5; from 225 degrees counter-clockwise to 315.
+	r5 := 5 / 1.4142135623730951
+	g := "G21\nG0 X" + f(20-r5) + " Y" + f(15-r5) + " Z20\nG3 X" + f(20+r5) + " Y" + f(15-r5) + " I" + f(r5) + " J" + f(r5) + " F100\n"
+	r := Check(g, machine, stock, tools)
+	if r.Min[1] > 10+1e-6 || r.Min[1] < 10-1e-6 {
+		t.Errorf("min Y %g; want 10, the arc's lowest point", r.Min[1])
+	}
+}
+
+func f(x float64) string { return strconv.FormatFloat(x, 'f', 6, 64) }
+
+// A full circle passes all four extremes.
+func TestFullCircle(t *testing.T) {
+	r := Check("G21\nG0 X30 Y15 Z20\nG2 X30 Y15 I-5 J0 F100\n", machine, stock, tools)
+	if r.Min[0] != 20 || r.Max[0] != 30 || r.Min[1] != 10 || r.Max[1] != 20 {
+		t.Errorf("extent X %g..%g Y %g..%g; want 20..30, 10..20", r.Min[0], r.Max[0], r.Min[1], r.Max[1])
+	}
+}
+
+// A drilling cycle: the tool goes back to R after each hole, so the rapid
+// to the next hole is not a crash; R counts in the extent.
+func TestDrillCycle(t *testing.T) {
+	g := "G21 G90\nG0 X10 Y10 Z20\nG99 G81 X10 Y10 Z-1 R14 F100\nX20 Y10\nG80\nG0 Z20\n"
+	r := Check(g, machine, stock, tools)
+	if len(r.Violations) != 0 {
+		t.Errorf("violations: %v", r.Violations)
+	}
+	if r.Min[2] != -1 || r.Max[2] != 20 {
+		t.Errorf("Z %g..%g; want -1..20", r.Min[2], r.Max[2])
+	}
+	// R below the stock's top: the rapid down to R is a crash.
+	if k := kinds(t, strings.Replace(g, "R14", "R5", 1)); len(k) != 1 || k[0] != "rapid" {
+		t.Errorf("R below the top: %v", k)
+	}
+}
+
+// Units apply to the whole block, whatever the order of its words.
+func TestUnitsInBlock(t *testing.T) {
+	r := Check("G0 X0 Y0 Z20\nG1 X2 F10 G20\n", machine, stock, tools)
+	if r.Max[0] < 50.8-1e-9 || r.Max[0] > 50.8+1e-9 {
+		t.Errorf("max X %g; want 50.8 (2 inches)", r.Max[0])
+	}
+}
+
+// A rapid that rises diagonally from beside the stock to over it, above
+// its top, is fine; so is one that falls beside it.
+func TestDiagonalRapidsBeside(t *testing.T) {
+	for _, g := range []string{
+		"G21\nG0 X50 Y10 Z5\nG0 X30 Y10 Z30\n", // above the top (11) by X 45.2, outside the stock (to 42)
+		"G21\nG0 X30 Y10 Z20\nG0 X60 Y10 Z5\n",
+	} {
+		if k := kinds(t, g); len(k) != 0 {
+			t.Errorf("%q: %v", g, k)
+		}
 	}
 }

@@ -38,10 +38,10 @@ def cam_job_config(ctx, out, path = None, info = None):
     Args:
       ctx: a cam_job (or its failure test's) rule context.
       out: the G-code path to write, a string.
-      info: the path to write the job's facts to, a string; next to `out`
-        when None.
       path: a function from `File` to the path the runner sees; the
         execution root path when None.
+      info: the path to write the job's facts to, a string; next to `out`
+        when None.
 
     Returns:
       The dict to write as JSON.

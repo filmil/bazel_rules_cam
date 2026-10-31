@@ -7,10 +7,16 @@ Load every rule from this file:
 ```starlark
 load(
     "@hdlf_rules_cam//cam:defs.bzl",
+    "CamJobInfo",
+    "FreecadToolchainInfo",
+    "GCODE_CHECK_KINDS",
+    "MachineInfo",
+    "ToolLibraryInfo",
     "cam_job",
     "determinism_test",
     "freecad_toolchain",
     "gcode_check_test",
+    "gcode_check_toolchain",
     "machine",
     "swap_test",
     "tool_library",
@@ -242,8 +248,13 @@ gcode_check_toolchain(<a href="#gcode_check_toolchain-name">name</a>, <a href="#
 A G-code checker, for `@hdlf_rules_cam//cam:gcode_check_toolchain_type`.
 
 hdlf_rules_cam registers its own, built from source. The checker runs as the
-test: `checker --gcode G --machine M --tools T --info I [--expect KIND]`,
-and exits 0 when the G-code passes.
+test, and exits 0 when the G-code passes. Its arguments arrive in the
+environment variable `GCODE_CHECK_ARGS`, one per line, followed by any the
+test is given: `--gcode=G`, `--machine=M`, `--tools=T`, `--info=I` and
+`--expect=KIND`. The paths are runfiles paths, from the test's working
+directory. `M` is JSON: `{"envelope": [x, y, z], "max_feed": ...,
+"max_spindle": ...}`; `T` is a canonical tool library; `I` is the job's
+`{"stock": {"XMin": ..., "ZMax": ...}}`.
 
 **ATTRIBUTES**
 

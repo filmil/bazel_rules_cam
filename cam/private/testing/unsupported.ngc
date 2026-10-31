@@ -1,0 +1,8 @@
+(A fixture: an arc in the XZ plane, which gcode_check_test does not follow.)
+G21 G90
+M6 T1
+M3 S12000
+G0 X0 Y0 Z16
+G18
+G1 X10 Z12 F200
+G0 Z16

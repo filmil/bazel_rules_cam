@@ -1,0 +1,7 @@
+(A fixture: a cutting move before any feed rate is set.)
+G21 G90
+M6 T1
+M3 S12000
+G0 X50 Y50 Z16
+G1 X50 Y50 Z12
+G0 Z16

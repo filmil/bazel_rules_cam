@@ -85,11 +85,13 @@ func main() {
 	info := flag.String("info", "", "the job's facts (stock box), JSON")
 	expect := flag.String("expect", "", "pass only if every violation is of this kind")
 	report := flag.String("report", "", "where to write the report")
-	// As a test, its arguments come from GCODE_CHECK_ARGS, one per line.
-	args := os.Args[1:]
-	if len(args) == 0 && os.Getenv("GCODE_CHECK_ARGS") != "" {
-		args = strings.Split(os.Getenv("GCODE_CHECK_ARGS"), "\n")
+	// As a test, its arguments come from GCODE_CHECK_ARGS, one per line,
+	// followed by any the test was given (--test_arg).
+	var args []string
+	if e := os.Getenv("GCODE_CHECK_ARGS"); e != "" {
+		args = strings.Split(e, "\n")
 	}
+	args = append(args, os.Args[1:]...)
 	if err := flag.CommandLine.Parse(args); err != nil {
 		os.Exit(2)
 	}

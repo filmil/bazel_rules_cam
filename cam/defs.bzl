@@ -6,10 +6,16 @@ Load every rule from this file:
 ```starlark
 load(
     "@hdlf_rules_cam//cam:defs.bzl",
+    "CamJobInfo",
+    "FreecadToolchainInfo",
+    "GCODE_CHECK_KINDS",
+    "MachineInfo",
+    "ToolLibraryInfo",
     "cam_job",
     "determinism_test",
     "freecad_toolchain",
     "gcode_check_test",
+    "gcode_check_toolchain",
     "machine",
     "swap_test",
     "tool_library",

@@ -279,5 +279,7 @@ tool_library(
         ("outside_envelope", "envelope", ":tiny_router", None, None),
         ("unknown_tool", "tool", None, ":no_t1_tools", None),
         ("rapid_into_stock", "rapid", None, None, "rapid_into_stock.ngc"),
+        ("cut_without_feed", "feed", None, None, "no_feed.ngc"),
+        ("unsupported_plane", "unsupported", None, None, "unsupported.ngc"),
     ]
 ]
