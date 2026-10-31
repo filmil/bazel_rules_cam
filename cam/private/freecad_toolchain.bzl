@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """The FreeCAD toolchain: freecadcmd, its tree, and its environment."""
 
+FREECAD_TOOLCHAIN_TYPE = Label("//cam:toolchain_type")
+
 FreecadToolchainInfo = provider(
     doc = "What a FreeCAD toolchain offers beyond the `freecadcmd` tool.",
     fields = {

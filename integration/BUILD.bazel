@@ -7,7 +7,7 @@
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
-load("@hdlf_rules_cam//cam:defs.bzl", "RULES_CAM_API_VERSION")
+load("@hdlf_rules_cam//cam:defs.bzl", "RULES_CAM_API_VERSION", "machine", "tool_library")
 load(":freecad_version.bzl", "freecad_version")
 
 # The public packages load and build: the rules, and the root package
@@ -47,4 +47,31 @@ diff_test(
     size = "small",
     file1 = ":freecad_version",
     file2 = "expected_freecad.txt",
+)
+
+# A tool library and a machine, as a user's job will name them.
+tool_library(
+    name = "tools",
+    src = "tools.json",
+)
+
+machine(
+    name = "router",
+    envelope = [
+        "400",
+        "300",
+        "75",
+    ],
+    max_feed = "5000",
+    max_spindle = "24000",
+    post = "grbl",
+)
+
+build_test(
+    name = "tools_and_machine_build",
+    size = "small",
+    targets = [
+        ":router",
+        ":tools",
+    ],
 )

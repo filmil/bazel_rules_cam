@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+load(":numbers_test.bzl", "numbers_test")
 
 bzl_library(
     name = "private",
@@ -8,8 +9,11 @@ bzl_library(
         "determinism.bzl",
         "extensions.bzl",
         "freecad_toolchain.bzl",
+        "machine.bzl",
+        "numbers.bzl",
         "run_tool.bzl",
         "swap_test.bzl",
+        "tool_library.bzl",
         "toolchains.bzl",
     ],
     visibility = ["//cam:__subpackages__"],
@@ -22,4 +26,11 @@ string_flag(
     name = "determinism_salt",
     build_setting_default = "",
     visibility = ["//visibility:public"],
+)
+
+# parse_number, which machine uses to check the numbers it takes as
+# strings: what it reads, and what it refuses.
+numbers_test(
+    name = "numbers_test",
+    size = "small",
 )
