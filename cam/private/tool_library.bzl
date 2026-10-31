@@ -50,7 +50,7 @@ dimensions, in mm and degrees:
 | Shape | Needs, beyond `diameter` and `length` |
 |---|---|
 | `endmill`, `ballend` | `cutting_edge_height` |
-| `bullnose` | `cutting_edge_height`, `flat_radius` |
+| `bullnose` | `cutting_edge_height`, `corner_radius` |
 | `drill` | `tip_angle` |
 | `vbit`, `chamfer` | `cutting_edge_angle`, `cutting_edge_height`, `tip_diameter` |
 
@@ -65,10 +65,13 @@ naming each problem, on:
 * a dimension that is not above 0 (`tip_diameter` may be 0), `flutes`
   outside 1 to 16, or an angle of 180 degrees or more;
 * dimensions that cannot fit together: a cutting edge longer than the
-  tool, a `flat_radius` of half the diameter or more, a `tip_diameter` of
+  tool, a `corner_radius` of half the diameter or more, a `tip_diameter` of
   the diameter or more, or a cutting edge shorter than the ball of a
-  `ballend` (half the diameter) or the corner of a `bullnose` (half the
-  diameter less `flat_radius`).
+  `ballend` (half the diameter) or the corner of a `bullnose`
+  (`corner_radius`).
+
+`corner_radius` is the radius of a bullnose's rounded corner, as FreeCAD's
+bullnose shape takes it (its `CornerRadius`).
 
 The output is the library in a canonical form: sorted by number, each
 number written one way (`3`, `3.0` and `3.00` all give `3`).
