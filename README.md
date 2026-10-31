@@ -32,7 +32,29 @@ common --registry=https://raw.githubusercontent.com/filmil/bazel-registry/main
 common --registry=https://bcr.bazel.build
 ```
 
-The rules are documented in [docs/defs.md](docs/defs.md).
+The rules are documented in [docs/defs.md](docs/defs.md), and the module
+extension in [docs/extensions.md](docs/extensions.md).
+
+### FreeCAD
+
+The module registers a FreeCAD 1.1.4 toolchain, so a user installs
+nothing. Its tree is the official AppImage, unpacked without running it,
+then pruned to `freecadcmd` and the CAM workbench (169 MB download,
+742 MB unpacked). It runs with no display and loads no host library but
+glibc. Every action gives FreeCAD a private home, and drops the host's
+`PYTHON*`, `QT_*`, `LD_*`, `FREECAD*`, `FONTCONFIG_*` and `FC_*`
+variables. FreeCAD's Python
+ignores `PYTHON*` variables anyway, so scripts run through a bootstrap that
+turns off `.pyc` writing.
+
+Two traps for operations scripts:
+
+* **Adaptive clearing is not deterministic.** FreeCAD's adaptive op
+  (`libarea/Adaptive.cpp`) stops its search on a CPU-time budget and draws
+  angles from `rand()`, so its toolpath changes from run to run. The rules
+  do not offer it.
+* **Feeds need units.** A plain number given to `HorizFeed` or `VertFeed`
+  is read as mm/s, so `600` becomes `F36000`. Write `"600 mm/min"`.
 
 ## Building
 
@@ -67,3 +89,7 @@ See the overall description at the [project page][pp].
 This repository is under the Apache License 2.0 (`LICENSE`).
 Prebuilt tools and libraries that the build downloads are listed here, with
 their versions, sources and licenses, as they are added.
+
+| What | Version | Source | License |
+|---|---|---|---|
+| FreeCAD, pruned | 1.1.4 | [FreeCAD_1.1.4-Linux-x86_64-py311.AppImage](https://github.com/FreeCAD/FreeCAD/releases/tag/1.1.4), sha256 `f6dc6ba6…43434`; mirrored as the release asset [prebuilt-freecad-1.1.4](https://github.com/filmil/bazel_rules_cam/releases/tag/prebuilt-freecad-1.1.4) | LGPL-2.0-or-later; its bundled libraries under their own licenses, listed in the tree's `packages.txt` |

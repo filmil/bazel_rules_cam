@@ -69,21 +69,23 @@ tool_toolchain = rule(
     implementation = _tool_toolchain_impl,
     doc = """A toolchain that offers tools by name, for `run_tool`.
 
-Example, a toolchain for another build of freecadcmd (the toolchain
-type arrives with this module's toolchain issue):
+Example, a toolchain for a tool of your own:
 
 ```starlark
 tool_toolchain(
-    name = "my_freecadcmd_impl",
-    tools = {"//third_party/freecadcmd:freecadcmd": "freecadcmd"},
+    name = "my_tool_impl",
+    tools = {"//third_party/my_tool": "my_tool"},
 )
 
 toolchain(
-    name = "my_freecadcmd",
-    toolchain = ":my_freecadcmd_impl",
-    toolchain_type = "@hdlf_rules_cam//cam:toolchain_type",
+    name = "my_tool",
+    toolchain = ":my_tool_impl",
+    toolchain_type = "//my:toolchain_type",
 )
 ```
+
+For FreeCAD, use `freecad_toolchain`: the rules that run freecadcmd also
+read its `FreecadToolchainInfo`.
 """,
     attrs = {
         "tools": attr.label_keyed_string_dict(
