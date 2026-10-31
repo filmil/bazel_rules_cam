@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 // Case is one run: the script, freecadcmd's arguments, and the exit
@@ -24,6 +25,10 @@ type Case struct {
 	Script string   `json:"script"`
 	Args   []string `json:"args"`
 	Want   int      `json:"want"`
+	// WantOutput, when set, must appear in the run's output.
+	WantOutput string `json:"want_output,omitempty"`
+	// Env adds to the run's environment.
+	Env map[string]string `json:"env,omitempty"`
 }
 
 // ParseCases reads EXITCHECK_CASES.
@@ -50,6 +55,9 @@ func run(tool string, c Case, tmp string) (int, string, error) {
 	}
 	cmd := exec.Command(tool, c.Args...)
 	cmd.Env = []string{"PATH=/usr/bin:/bin", "HOME=" + home, "TMPDIR=" + home, "LC_ALL=C.UTF-8", "TZ=UTC0"}
+	for k, v := range c.Env {
+		cmd.Env = append(cmd.Env, k+"="+v)
+	}
 	out, err := cmd.CombinedOutput()
 	var ee *exec.ExitError
 	if errors.As(err, &ee) {
@@ -83,6 +91,9 @@ func main() {
 			bad++
 		case got != c.Want:
 			fmt.Printf("FAIL %s: exit status %d, want %d\n%s\n", script, got, c.Want, out)
+			bad++
+		case c.WantOutput != "" && !strings.Contains(out, c.WantOutput):
+			fmt.Printf("FAIL %s: exit status %d, but the output lacks %q:\n%s\n", script, got, c.WantOutput, out)
 			bad++
 		default:
 			fmt.Printf("ok   %s: exit status %d\n", script, got)

@@ -6,6 +6,7 @@ Load every rule from this file:
 ```starlark
 load(
     "@hdlf_rules_cam//cam:defs.bzl",
+    "cam_job",
     "determinism_test",
     "freecad_toolchain",
     "machine",
@@ -20,6 +21,7 @@ https://github.com/filmil/bazel_rules_cam). This file is the only public
 entry point; everything under `//cam/private` may change without notice.
 """
 
+load("//cam/private:cam_job.bzl", _cam_job = "cam_job")
 load("//cam/private:determinism.bzl", _determinism_test = "determinism_test")
 load(
     "//cam/private:freecad_toolchain.bzl",
@@ -31,6 +33,7 @@ load("//cam/private:swap_test.bzl", _swap_test = "swap_test")
 load("//cam/private:tool_library.bzl", _ToolLibraryInfo = "ToolLibraryInfo", _tool_library = "tool_library")
 load("//cam/private:toolchains.bzl", _tool_toolchain = "tool_toolchain")
 
+cam_job = _cam_job
 determinism_test = _determinism_test
 freecad_toolchain = _freecad_toolchain
 FreecadToolchainInfo = _FreecadToolchainInfo

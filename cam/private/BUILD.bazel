@@ -6,6 +6,7 @@ load(":numbers_test.bzl", "numbers_test")
 bzl_library(
     name = "private",
     srcs = [
+        "cam_job.bzl",
         "determinism.bzl",
         "extensions.bzl",
         "freecad_toolchain.bzl",

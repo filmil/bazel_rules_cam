@@ -1,0 +1,129 @@
+# SPDX-License-Identifier: Apache-2.0
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@rules_go//go:def.bzl", "go_test")
+load("//cam:defs.bzl", "cam_job", "determinism_test", "machine", "swap_test", "tool_library")
+load(":testing.bzl", "cam_job_failure_test", "freecad_step")
+
+bzl_library(
+    name = "testing",
+    srcs = ["testing.bzl"],
+    visibility = ["//tests:__subpackages__"],
+    deps = ["//cam/private"],
+)
+# cam_job (issue #9), end to end: a STEP part, made by FreeCAD; a tool
+# library; two machines with different posts. The G-code holds what the
+# job set (gcode_test), repeats byte for byte, and comes from the stub
+# under swap_test. Jobs the runner must refuse are cam_job_failure_test
+# targets below (spec T3).
+
+freecad_step(
+    name = "plate",
+    script = "plate_part.py",
+)
+
+freecad_step(
+    name = "two_parts",
+    script = "two_parts.py",
+)
+
+tool_library(
+    name = "tools",
+    src = "tools.json",
+)
+
+[
+    machine(
+        name = post + "_router",
+        envelope = [
+            "400",
+            "300",
+            "75",
+        ],
+        max_feed = "5000",
+        max_spindle = "24000",
+        post = post,
+    )
+    for post in [
+        "grbl",
+        "linuxcnc",
+    ]
+]
+
+[
+    cam_job(
+        name = "plate_" + post,
+        machine = ":%s_router" % post,
+        ops = "pocket_ops.py",
+        part = ":plate",
+        stock = {
+            "x": "2",
+            "y": "2",
+            "z_top": "1",
+        },
+        tools = ":tools",
+    )
+    for post in [
+        "grbl",
+        "linuxcnc",
+    ]
+]
+
+go_test(
+    name = "gcode_test",
+    size = "small",
+    srcs = ["gcode_test.go"],
+    args = [
+        "$(rootpath :plate_grbl)",
+        "$(rootpath :plate_linuxcnc)",
+    ],
+    data = [
+        ":plate_grbl",
+        ":plate_linuxcnc",
+    ],
+    pure = "on",
+)
+
+[
+    determinism_test(
+        name = "plate_%s_determinism_test" % post,
+        size = "small",
+        target = ":plate_" + post,
+    )
+    for post in [
+        "grbl",
+        "linuxcnc",
+    ]
+]
+
+swap_test(
+    name = "swap_test",
+    size = "small",
+    targets = [
+        ":plate_grbl",
+        ":plate_linuxcnc",
+    ],
+)
+
+# One line per job the runner must refuse: name, part, ops, and the
+# message.
+[
+    cam_job_failure_test(
+        name = name + "_test",
+        size = "small",
+        checker = "//cam/private/smoke/exitcheck",
+        machine = ":grbl_router",
+        message = message,
+        ops = ops,
+        part = part,
+        tools = ":tools",
+    )
+    for name, part, ops, message in [
+        ("adaptive", ":plate", "adaptive_ops.py", "Adaptive clearing is not deterministic"),
+        ("too_fast", ":plate", "fast_ops.py", "horizontal feed 9000 mm/min is above the machine's 5000"),
+        ("too_fast_spindle", ":plate", "fast_ops.py", "spindle 30000 rpm is above the machine's 24000"),
+        ("no_feed", ":plate", "no_feed_ops.py", "no horizontal feed; set it, with units"),
+        ("no_function", ":plate", "no_function_ops.py", "defines no operations(job, model, tools)"),
+        ("no_operations", ":plate", "empty_ops.py", "the operations script added no operations"),
+        ("two_solids", ":two_parts", "pocket_ops.py", "has 2 solids; a job machines one"),
+    ]
+]
