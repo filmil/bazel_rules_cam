@@ -1,23 +1,23 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# The example consumer. It uses only the public API of rules_cam, as a
+# The example consumer. It uses only the public API of hdlf_rules_cam, as a
 # user of the published module would. The e2e pocket job arrives with
 # cam_job (milestone M5).
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
-load("@rules_cam//cam:defs.bzl", "RULES_CAM_API_VERSION")
+load("@hdlf_rules_cam//cam:defs.bzl", "RULES_CAM_API_VERSION")
 
 # The public packages load and build: the rules, and the root package
-# with the --@rules_cam//:tools flag that every user's build reads.
+# with the --@hdlf_rules_cam//:tools flag that every user's build reads.
 build_test(
     name = "public_api_builds",
     size = "small",
     targets = [
-        "@rules_cam//:tools",
-        "@rules_cam//:tools_prebuilt",
-        "@rules_cam//:tools_source",
-        "@rules_cam//cam:defs",
+        "@hdlf_rules_cam//:tools",
+        "@hdlf_rules_cam//:tools_prebuilt",
+        "@hdlf_rules_cam//:tools_source",
+        "@hdlf_rules_cam//cam:defs",
     ],
 )
 

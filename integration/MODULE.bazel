@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # The Bazel Central Registry presubmit builds this module against the
-# published rules_cam archive. `.bcr/presubmit.yml` names it by the
+# published hdlf_rules_cam archive. `.bcr/presubmit.yml` names it by the
 # `module_path: "integration"` key.
 #
 # The version below and the override are both replaced by the registry
@@ -9,13 +9,13 @@
 # Locally the override makes the module resolve to the parent directory, so
 # `cd integration && bazel test //...` exercises the working tree.
 module(
-    name = "rules_cam_integration",
+    name = "hdlf_rules_cam_integration",
     version = "0.0.0",
 )
 
-bazel_dep(name = "rules_cam", version = "0.0.0")
+bazel_dep(name = "hdlf_rules_cam", version = "0.0.0")
 local_path_override(
-    module_name = "rules_cam",
+    module_name = "hdlf_rules_cam",
     path = "..",
 )
 

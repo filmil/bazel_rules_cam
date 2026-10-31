@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Public API of rules_cam.
+"""Public API of hdlf_rules_cam.
 
 Load every rule from this file:
 
 ```starlark
-load("@rules_cam//cam:defs.bzl", "determinism_test", "swap_test", "tool_toolchain")
+load("@hdlf_rules_cam//cam:defs.bzl", "determinism_test", "swap_test", "tool_toolchain")
 ```
 
 The rules arrive in milestone M5 (see the issues of
