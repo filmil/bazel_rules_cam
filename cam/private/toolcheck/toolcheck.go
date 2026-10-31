@@ -39,7 +39,7 @@ type Tool struct {
 	CuttingEdgeHeight *float64 `json:"cutting_edge_height,omitempty"`
 	ShankDiameter     *float64 `json:"shank_diameter,omitempty"`
 	Flutes            *int     `json:"flutes,omitempty"`
-	FlatRadius        *float64 `json:"flat_radius,omitempty"`
+	CornerRadius      *float64 `json:"corner_radius,omitempty"`
 	TipAngle          *float64 `json:"tip_angle,omitempty"`
 	CuttingEdgeAngle  *float64 `json:"cutting_edge_angle,omitempty"`
 	TipDiameter       *float64 `json:"tip_diameter,omitempty"`
@@ -56,7 +56,7 @@ type Library struct {
 var Shapes = map[string]struct{ Need, May []string }{
 	"endmill":  {Need: []string{"cutting_edge_height"}, May: []string{"shank_diameter", "flutes"}},
 	"ballend":  {Need: []string{"cutting_edge_height"}, May: []string{"shank_diameter", "flutes"}},
-	"bullnose": {Need: []string{"cutting_edge_height", "flat_radius"}, May: []string{"shank_diameter", "flutes"}},
+	"bullnose": {Need: []string{"cutting_edge_height", "corner_radius"}, May: []string{"shank_diameter", "flutes"}},
 	"drill":    {Need: []string{"tip_angle"}, May: []string{"shank_diameter", "flutes"}},
 	"vbit":     {Need: []string{"cutting_edge_angle", "cutting_edge_height", "tip_diameter"}, May: []string{"shank_diameter", "flutes"}},
 	"chamfer":  {Need: []string{"cutting_edge_angle", "cutting_edge_height", "tip_diameter"}, May: []string{"shank_diameter", "flutes"}},
@@ -77,7 +77,7 @@ func (t *Tool) present() map[string]bool {
 		"cutting_edge_height": t.CuttingEdgeHeight != nil,
 		"shank_diameter":      t.ShankDiameter != nil,
 		"flutes":              t.Flutes != nil,
-		"flat_radius":         t.FlatRadius != nil,
+		"corner_radius":       t.CornerRadius != nil,
 		"tip_angle":           t.TipAngle != nil,
 		"cutting_edge_angle":  t.CuttingEdgeAngle != nil,
 		"tip_diameter":        t.TipDiameter != nil,
@@ -191,7 +191,7 @@ func Check(l *Library) []string {
 			v *float64
 		}{
 			{"diameter", t.Diameter}, {"length", t.Length}, {"cutting_edge_height", t.CuttingEdgeHeight},
-			{"shank_diameter", t.ShankDiameter}, {"flat_radius", t.FlatRadius}, {"tip_angle", t.TipAngle},
+			{"shank_diameter", t.ShankDiameter}, {"corner_radius", t.CornerRadius}, {"tip_angle", t.TipAngle},
 			{"cutting_edge_angle", t.CuttingEdgeAngle},
 		} {
 			positive(&errs, who, p.n, p.v)
@@ -217,8 +217,8 @@ func Check(l *Library) []string {
 			if t.CuttingEdgeHeight != nil && *t.CuttingEdgeHeight > *t.Length {
 				errs = append(errs, fmt.Sprintf("%s: cutting_edge_height %g is more than the length %g", who, *t.CuttingEdgeHeight, *t.Length))
 			}
-			if t.FlatRadius != nil && *t.FlatRadius > 0 && *t.FlatRadius >= r {
-				errs = append(errs, fmt.Sprintf("%s: flat_radius %g; want less than the radius %g", who, *t.FlatRadius, r))
+			if t.CornerRadius != nil && *t.CornerRadius > 0 && *t.CornerRadius >= r {
+				errs = append(errs, fmt.Sprintf("%s: corner_radius %g; want less than the radius %g (a ballend has that)", who, *t.CornerRadius, r))
 			}
 			if t.TipDiameter != nil && *t.TipDiameter >= 0 && *t.TipDiameter >= *t.Diameter {
 				errs = append(errs, fmt.Sprintf("%s: tip_diameter %g; want less than the diameter %g", who, *t.TipDiameter, *t.Diameter))
@@ -229,8 +229,8 @@ func Check(l *Library) []string {
 				if t.Shape == "ballend" && *t.CuttingEdgeHeight < r {
 					errs = append(errs, fmt.Sprintf("%s: cutting_edge_height %g; want at least the ball's radius %g", who, *t.CuttingEdgeHeight, r))
 				}
-				if t.Shape == "bullnose" && t.FlatRadius != nil && *t.FlatRadius > 0 && *t.FlatRadius < r && *t.CuttingEdgeHeight < r-*t.FlatRadius {
-					errs = append(errs, fmt.Sprintf("%s: cutting_edge_height %g; want at least the corner radius %g", who, *t.CuttingEdgeHeight, r-*t.FlatRadius))
+				if t.Shape == "bullnose" && t.CornerRadius != nil && *t.CornerRadius > 0 && *t.CornerRadius < r && *t.CuttingEdgeHeight < *t.CornerRadius {
+					errs = append(errs, fmt.Sprintf("%s: cutting_edge_height %g; want at least the corner radius %g", who, *t.CuttingEdgeHeight, *t.CornerRadius))
 				}
 			}
 		}
@@ -247,7 +247,7 @@ func Canonical(l *Library) ([]byte, error) {
 		t := &tools[i]
 		// -0 and 0 are one value; JSON would write them apart.
 		for _, p := range []**float64{&t.Diameter, &t.Length, &t.CuttingEdgeHeight, &t.ShankDiameter,
-			&t.FlatRadius, &t.TipAngle, &t.CuttingEdgeAngle, &t.TipDiameter} {
+			&t.CornerRadius, &t.TipAngle, &t.CuttingEdgeAngle, &t.TipDiameter} {
 			if *p != nil && **p == 0 {
 				z := 0.0
 				*p = &z
