@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+load("//cam/private:extensions.bzl", "DEFAULT_FREECAD_VERSION")
+load("//cam/private:freecad_toolchain.bzl", "freecad_stub_toolchain")
 load("//cam/private:toolchains.bzl", "helpers_toolchain", "unsupported_platform_toolchain")
 
 # --@hdlf_rules_cam//cam/toolchains:use_stub swaps every tool for the stub.
@@ -58,4 +60,23 @@ toolchain(
     name = "unsupported",
     toolchain = ":unsupported_impl",
     toolchain_type = "//cam:helpers_toolchain_type",
+)
+
+# swap_test's stand-in for freecadcmd. Its post-processor list is the two
+# that the stub's tests name.
+freecad_stub_toolchain(
+    name = "freecad_stub_impl",
+    posts = [
+        "grbl",
+        "linuxcnc",
+    ],
+    stub = "//cam/private/stub",
+    version = DEFAULT_FREECAD_VERSION,
+)
+
+toolchain(
+    name = "freecad_stub",
+    target_settings = [":stub_on"],
+    toolchain = ":freecad_stub_impl",
+    toolchain_type = "//cam:toolchain_type",
 )

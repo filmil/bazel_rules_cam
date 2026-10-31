@@ -4,7 +4,8 @@
 //
 // Usage:
 //
-//	launcher [--home-env NAME]... [--env NAME=VALUE]... [--output PATH]... -- TOOL ARGS...
+//	launcher [--home-env NAME]... [--env NAME=VALUE]... [--env-abs NAME=PATH]...
+//	         [--output PATH]... [--stdout PATH] -- TOOL ARGS...
 //
 // It makes a fresh directory inside the action's working directory, points
 // HOME, TMPDIR and the XDG base directories at it (and every NAME given with
@@ -12,6 +13,11 @@
 // removes the directory, and exits with the tool's status. So a tool that
 // writes settings or caches writes them where the action can see and
 // nothing else can (spec requirement H3).
+//
+// --env-abs sets NAME to PATH made absolute against the action's working
+// directory, for tools that read a path from the environment and resolve it
+// against somewhere else (fontconfig reads FONTCONFIG_FILE that way).
+// --stdout sends the tool's standard output to PATH instead.
 //
 // --output names a declared output of the action. The launcher passes the
 // list to the tool in RUN_TOOL_OUTPUTS, one path per line; real tools
@@ -31,7 +37,9 @@ import (
 type Request struct {
 	HomeEnv []string
 	Env     []string
+	EnvAbs  []string
 	Outputs []string
+	Stdout  string
 	Tool    string
 	Args    []string
 }
@@ -61,6 +69,20 @@ func Parse(args []string) (Request, error) {
 				return r, fmt.Errorf("--env %q: want NAME=VALUE", v)
 			}
 			r.Env = append(r.Env, v)
+		case "--env-abs":
+			k, p, ok := strings.Cut(v, "=")
+			if !ok || k == "" || p == "" {
+				return r, fmt.Errorf("--env-abs %q: want NAME=PATH", v)
+			}
+			r.EnvAbs = append(r.EnvAbs, v)
+		case "--stdout":
+			if v == "" {
+				return r, errors.New("--stdout needs a path")
+			}
+			if r.Stdout != "" {
+				return r, errors.New("--stdout given twice")
+			}
+			r.Stdout = v
 		case "--output":
 			r.Outputs = append(r.Outputs, v)
 		default:
@@ -78,10 +100,29 @@ var Dropped = []string{
 	"XDG_RUNTIME_DIR", "XDG_CONFIG_DIRS", "XDG_DATA_DIRS", "XAUTHORITY",
 }
 
+// DroppedPrefixes start the names of variables that would point a tool at
+// host libraries, settings or fonts: FreeCAD's (FREECAD_USER_HOME and the
+// like), Python's (PYTHONPATH, PYTHONHOME), Qt's, the dynamic loader's
+// (LD_LIBRARY_PATH, LD_PRELOAD) and fontconfig's. A toolchain sets the ones
+// it needs with --env.
+var DroppedPrefixes = []string{"FREECAD", "PYTHON", "QT_", "LD_", "FONTCONFIG_", "FC_"}
+
+func dropped(k string, drop map[string]bool) bool {
+	if drop[k] {
+		return true
+	}
+	for _, p := range DroppedPrefixes {
+		if strings.HasPrefix(k, p) {
+			return true
+		}
+	}
+	return false
+}
+
 // Environ returns the tool's environment: base without the Dropped
 // variables, with the home variables pointing inside home, then the fixed
-// --env values, which win.
-func Environ(base []string, home string, r Request) []string {
+// --env values, then the --env-abs values made absolute against cwd.
+func Environ(base []string, home, cwd string, r Request) []string {
 	set := map[string]string{}
 	var order []string
 	put := func(k, v string) {
@@ -96,7 +137,7 @@ func Environ(base []string, home string, r Request) []string {
 	}
 	for _, kv := range base {
 		k, v, _ := strings.Cut(kv, "=")
-		if !drop[k] {
+		if !dropped(k, drop) {
 			put(k, v)
 		}
 	}
@@ -110,9 +151,19 @@ func Environ(base []string, home string, r Request) []string {
 		put(n, filepath.Join(home, n))
 	}
 	put("RUN_TOOL_OUTPUTS", strings.Join(r.Outputs, "\n"))
+	if r.Stdout != "" {
+		put("RUN_TOOL_STDOUT", r.Stdout)
+	}
 	for _, kv := range r.Env {
 		k, v, _ := strings.Cut(kv, "=")
 		put(k, v)
+	}
+	for _, kv := range r.EnvAbs {
+		k, p, _ := strings.Cut(kv, "=")
+		if !filepath.IsAbs(p) {
+			p = filepath.Join(cwd, p)
+		}
+		put(k, p)
 	}
 	out := make([]string, 0, len(order))
 	for _, k := range order {
@@ -137,8 +188,8 @@ func Dirs(home string, r Request) []string {
 }
 
 // Run runs the request with a fresh home under dir and returns the tool's
-// exit status.
-func Run(r Request, dir string) (int, error) {
+// exit status. Relative paths in r are relative to dir.
+func Run(r Request, dir string) (code int, err error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
 		return 0, err
@@ -154,8 +205,24 @@ func Run(r Request, dir string) (int, error) {
 		}
 	}
 	cmd := exec.Command(r.Tool, r.Args...)
-	cmd.Env = Environ(os.Environ(), home, r)
+	cmd.Env = Environ(os.Environ(), home, abs, r)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	if r.Stdout != "" {
+		p := r.Stdout
+		if !filepath.IsAbs(p) {
+			p = filepath.Join(abs, p)
+		}
+		f, ferr := os.Create(p)
+		if ferr != nil {
+			return 0, ferr
+		}
+		defer func() {
+			if cerr := f.Close(); cerr != nil && err == nil {
+				err = cerr
+			}
+		}()
+		cmd.Stdout = f
+	}
 	err = cmd.Run()
 	var ee *exec.ExitError
 	if errors.As(err, &ee) {

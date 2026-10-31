@@ -6,6 +6,8 @@ bzl_library(
     name = "private",
     srcs = [
         "determinism.bzl",
+        "extensions.bzl",
+        "freecad_toolchain.bzl",
         "run_tool.bzl",
         "swap_test.bzl",
         "toolchains.bzl",

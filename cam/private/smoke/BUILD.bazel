@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# The FreeCAD toolchain, end to end (issue #7): freecadcmd from the
+# toolchain runs one CAM job on a STEP part and posts it, for two posts;
+# the G-code repeats byte for byte; under the stub toolchain the outputs
+# come from the stub, so the rule names no other tool; and a post that the
+# toolchain lacks fails analysis (spec T3).
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("//cam:defs.bzl", "determinism_test", "swap_test")
+load(":smoke.bzl", "freecad_smoke")
+load(":smoke_test.bzl", "unknown_post_test")
+
+[
+    freecad_smoke(
+        name = post,
+        post = post,
+        script = "smoke.py",
+    )
+    for post in [
+        "grbl",
+        "linuxcnc",
+    ]
+]
+
+build_test(
+    name = "smoke_test",
+    size = "small",
+    targets = [
+        ":grbl",
+        ":linuxcnc",
+    ],
+)
+
+determinism_test(
+    name = "determinism_test",
+    size = "small",
+    target = ":linuxcnc",
+)
+
+swap_test(
+    name = "swap_test",
+    size = "small",
+    targets = [
+        ":grbl",
+        ":linuxcnc",
+    ],
+)
+
+freecad_smoke(
+    name = "nosuch",
+    post = "nosuch",
+    script = "smoke.py",
+    tags = ["manual"],
+)
+
+unknown_post_test(
+    name = "unknown_post_test",
+    size = "small",
+    target_under_test = ":nosuch",
+)
