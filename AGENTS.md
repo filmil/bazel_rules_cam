@@ -35,7 +35,10 @@ the change.
 5. A change to a job or its part attaches the G-code check report to the
    pull request: the report that `gcode_check_test` prints into its test
    log (`bazel-testlogs/<package>/<test>/test.log`), also kept as
-   `gcode_check_report.txt` in the test's `test.outputs/`.
+   `gcode_check_report.txt` in the test's `test.outputs/`. It also
+   attaches the job's `gcode_render` pictures and report, before and
+   after: put them on a branch that is never merged, link them, and
+   delete the branch after the merge.
 6. One logical change per pull request: one rule, one feature, or one
    design change.
 7. Stop and ask the operator before you:

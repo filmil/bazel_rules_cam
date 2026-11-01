@@ -11,6 +11,7 @@ bzl_library(
         "extensions.bzl",
         "freecad_toolchain.bzl",
         "gcode_check.bzl",
+        "gcode_render.bzl",
         "machine.bzl",
         "numbers.bzl",
         "run_tool.bzl",

@@ -84,6 +84,40 @@ type Result struct {
 	Min, Max   [3]float64
 	Moves      int
 	Tools      []int
+	// Path is the toolpath, every move between known points, in order:
+	// what gcode_render draws. Arcs come as short straight pieces.
+	Path []Segment
+}
+
+// Segment is one straight piece of the toolpath.
+type Segment struct {
+	From, To [3]float64
+	Rapid    bool    // a G0; else the tool cuts at Feed
+	Feed     float64 // mm/min; 0 for a rapid
+	Tool     int     // the tool in the spindle, 0 none
+	Op       string  // the operation, from FreeCAD's "Begin operation" comments
+	Line     int
+}
+
+// opComment is the comment FreeCAD's posts write before each operation.
+// A comment arrives with its opening parenthesis; posts differ in case
+// ("Begin operation" in grbl, "begin operation" in linuxcnc).
+var opComment = regexp.MustCompile(`(?i)^\(?\s*begin operation:\s*(.*?)\s*$`)
+
+// arcPiece is the length of the straight pieces an arc is drawn with, mm.
+const arcPiece = 0.25
+
+// trace records a straight move from a to b, if both are known.
+func (c *checker) trace(line int, a [3]float64, aKnown [3]bool, b [3]float64, bKnown [3]bool, rapid bool) {
+	all := [3]bool{true, true, true}
+	if aKnown != all || bKnown != all {
+		return
+	}
+	s := Segment{From: a, To: b, Rapid: rapid, Tool: c.tool, Op: c.op, Line: line}
+	if !rapid {
+		s.Feed = c.feed
+	}
+	c.r.Path = append(c.r.Path, s)
 }
 
 // Check reads the G-code and returns what it found.
@@ -119,6 +153,7 @@ type checker struct {
 	tools    map[int]Tool
 	tool     int      // the tool in the spindle, 0 none
 	hm       *heights // the stock as cut so far; nil without a stock
+	op       string   // the current operation's name, if the post wrote one
 	pos      [3]float64
 	known    [3]bool
 	motion   int     // 0 to 3, 81 to 83 or 73 (a drilling cycle), -1 none
@@ -156,6 +191,9 @@ func (c *checker) extend(p [3]float64) {
 func (c *checker) block(line int, raw string) {
 	code, comments := splitComments(raw)
 	for _, cm := range comments {
+		if m := opComment.FindStringSubmatch(cm); m != nil {
+			c.op = m[1]
+		}
 		for _, mt := range commentTool.FindAllStringSubmatch(cm, -1) {
 			n, _ := strconv.Atoi(mt[1] + mt[2])
 			c.useTool(n, line)
@@ -279,6 +317,7 @@ func (c *checker) block(line int, raw string) {
 	switch c.motion {
 	case 0:
 		c.rapid(line, c.pos, c.known, dest)
+		c.trace(line, c.pos, c.known, dest, destKnown, true)
 		c.moveTo(dest, destKnown)
 	case 1:
 		c.cut(line)
@@ -286,6 +325,7 @@ func (c *checker) block(line int, raw string) {
 			path, n := straight(c.pos, dest)
 			c.sweep(line, path, n)
 		}
+		c.trace(line, c.pos, c.known, dest, destKnown, false)
 		c.moveTo(dest, destKnown)
 	case 2, 3:
 		if !hasIJ || hasR {
@@ -297,6 +337,10 @@ func (c *checker) block(line int, raw string) {
 		if c.known == [3]bool{true, true, true} && destKnown == c.known {
 			path, n := arc(c.pos, dest, ij, c.motion == 2)
 			c.sweep(line, path, n)
+			pieces := int(math.Ceil(n/arcPiece)) + 1
+			for k := 0; k < pieces; k++ {
+				c.trace(line, path(float64(k)/float64(pieces)), c.known, path(float64(k+1)/float64(pieces)), destKnown, false)
+			}
 		}
 		from, fromKnown := c.pos, c.known
 		c.moveTo(dest, destKnown)
@@ -333,9 +377,11 @@ func (c *checker) drill(line int, dest [3]float64, known [3]bool) {
 	above := start
 	above[0], above[1] = dest[0], dest[1]
 	c.rapid(line, start, c.known, above)
+	c.trace(line, start, c.known, above, known, true)
 	atR := above
 	atR[2] = c.retract
 	c.rapid(line, above, known, atR)
+	c.trace(line, above, known, atR, known, true)
 	c.cut(line)
 	hole := atR
 	hole[2] = bottom
@@ -350,12 +396,14 @@ func (c *checker) drill(line int, dest [3]float64, known [3]bool) {
 		path, n := straight(atR, hole)
 		c.sweep(line, path, n)
 	}
+	c.trace(line, atR, k, hole, k, false)
 	c.moveTo(hole, k)
 	back := hole
 	back[2] = c.retract
 	if c.oldZ {
 		back[2] = math.Max(start[2], c.retract)
 	}
+	c.trace(line, hole, k, back, k, true)
 	c.moveTo(back, k)
 }
 

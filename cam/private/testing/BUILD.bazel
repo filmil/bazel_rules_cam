@@ -2,7 +2,7 @@
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@rules_go//go:def.bzl", "go_test")
-load("//cam:defs.bzl", "cam_job", "determinism_test", "gcode_check_test", "machine", "swap_test", "tool_library")
+load("//cam:defs.bzl", "cam_job", "determinism_test", "gcode_check_test", "gcode_render", "machine", "swap_test", "tool_library")
 load(":testing.bzl", "cam_job_failure_test", "fails_test", "freecad_step")
 
 bzl_library(
@@ -316,3 +316,24 @@ determinism_test(
     size = "small",
     target = ":helix_grbl",
 )
+
+# The toolpath pictures and report (issue #35) of three jobs: a pocket and
+# profile, holding tags, and a helix.
+[
+    (
+        gcode_render(
+            name = job + "_toolpath",
+            job = ":" + job,
+        ),
+        determinism_test(
+            name = job + "_toolpath_determinism_test",
+            size = "small",
+            target = ":" + job + "_toolpath",
+        ),
+    )
+    for job in [
+        "plate_linuxcnc",
+        "plate_tagged",
+        "helix_grbl",
+    ]
+]

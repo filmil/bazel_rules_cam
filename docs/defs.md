@@ -17,6 +17,7 @@ load(
     "freecad_toolchain",
     "gcode_check_test",
     "gcode_check_toolchain",
+    "gcode_render",
     "machine",
     "swap_test",
     "tool_library",
@@ -288,6 +289,53 @@ directory. `M` is JSON: `{"envelope": [x, y, z], "max_feed": ...,
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="gcode_check_toolchain-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
 | <a id="gcode_check_toolchain-checker"></a>checker |  The checker binary.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
+
+
+<a id="gcode_render"></a>
+
+## gcode_render
+
+<pre>
+load("@hdlf_rules_cam//cam:defs.bzl", "gcode_render")
+
+gcode_render(<a href="#gcode_render-name">name</a>, <a href="#gcode_render-job">job</a>)
+</pre>
+
+Draws a job's toolpath, and writes a report of it.
+
+```starlark
+gcode_render(
+    name = "bracket_toolpath",
+    job = ":bracket",
+)
+```
+
+The outputs:
+
+* `<name>_top.png`: the toolpath seen from above;
+* `<name>_iso.png`: the same in an isometric view (X to the right and
+  down, Y to the left and down, Z up);
+* `<name>.md`: per operation, its tools, the Z levels it cuts at, its
+  deepest Z, its cut and rapid lengths, and an estimated time from the
+  feeds (rapids at the machine's `max_feed`, no acceleration).
+
+In the pictures, cutting moves are colored by depth: light blue at the
+stock's top, through blue and purple, to dark red at the deepest cut.
+Rapids are dashed gray, and the stock is a gray box. The pictures hold no
+text and no metadata, so the same job gives the same bytes
+(`determinism_test`). The legend is in the report.
+
+The G-code is read the way `gcode_check_test` reads it, so the pictures
+show the moves the check vouches for. The pictures and the report are what
+a pull request that changes a job attaches (rule 5 of AGENTS.md).
+
+**ATTRIBUTES**
+
+
+| Name  | Description | Type | Mandatory | Default |
+| :------------- | :------------- | :------------- | :------------- | :------------- |
+| <a id="gcode_render-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
+| <a id="gcode_render-job"></a>job |  The job (`cam_job`).   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
 
 
 <a id="machine"></a>
