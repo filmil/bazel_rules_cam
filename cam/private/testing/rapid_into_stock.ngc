@@ -1,5 +1,7 @@
 (A fixture: the plate job's start, with the rapid down to just above the)
 (stock changed to go 3 mm into it. gcode_check_test must flag it as rapid.)
+(It then cuts at that depth only, 3 mm, which T1 may: the one fault is)
+(the rapid.)
 G17 G54 G40 G49 G80 G90
 G21
 M6 T1
@@ -7,7 +9,6 @@ M3 S12000
 G0 Z16.000
 G0 X25.500 Y14.500
 G0 X25.500 Y14.500 Z8.000
-G1 X25.500 Y14.500 Z6.000 F200.000
-G1 X14.500 Y14.500 Z6.000 F600.000
+G1 X14.500 Y14.500 Z8.000 F600.000
 G0 Z16.000
 M5

@@ -11,7 +11,8 @@ import (
 var (
 	machine = Machine{Envelope: [3]float64{100, 100, 50}, MaxFeed: 1000, MaxSpindle: 20000}
 	stock   = Stock{XMin: -2, XMax: 42, YMin: -2, YMax: 32, ZMin: 0, ZMax: 11}
-	tools   = map[int]bool{1: true, 2: true}
+	// T1's plunge in good goes 5 mm into the stock.
+	tools = map[int]Tool{1: {Shape: "endmill", Diameter: 3, MaxStepdown: 5}, 2: {Shape: "endmill", Diameter: 6}}
 )
 
 // A job as FreeCAD's posts write it: to clearance, across, down to just

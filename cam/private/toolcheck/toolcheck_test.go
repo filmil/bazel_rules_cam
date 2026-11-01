@@ -12,7 +12,7 @@ const good = `{"tools": [
   {"number": 4, "name": "6 mm ball", "shape": "ballend", "diameter": 6, "length": 50, "cutting_edge_height": 20, "shank_diameter": 6},
   {"number": 5, "name": "90 degree chamfer", "shape": "chamfer", "diameter": 12, "length": 50, "cutting_edge_angle": 90, "cutting_edge_height": 6, "tip_diameter": 0},
   {"number": 999, "name": "6 mm bullnose", "shape": "bullnose", "diameter": 6, "length": 50, "cutting_edge_height": 12, "corner_radius": 1, "flutes": 16},
-  {"number": 1, "name": "3 mm flat end mill", "shape": "endmill", "diameter": 3.0, "length": 38, "cutting_edge_height": 12, "flutes": 2},
+  {"number": 1, "name": "3 mm flat end mill", "shape": "endmill", "diameter": 3.0, "length": 38, "cutting_edge_height": 12, "flutes": 2, "max_stepdown": 1.50},
   {"number": 2, "name": "60 degree V-bit", "shape": "vbit", "diameter": 6, "length": 40, "cutting_edge_angle": 60, "cutting_edge_height": 5, "tip_diameter": 0.1}
 ]}`
 
@@ -46,7 +46,7 @@ func TestCanonicalIsStable(t *testing.T) {
 	other := `{"tools":[{"number":999,"name":"6 mm bullnose","shape":"bullnose","diameter":6,"length":50,"cutting_edge_height":12,"corner_radius":1.0,"flutes":16},
 	{"number":5,"name":"90 degree chamfer","shape":"chamfer","diameter":12,"length":50,"cutting_edge_angle":90,"cutting_edge_height":6,"tip_diameter":-0.0},
 	{"number":4,"name":"6 mm ball","shape":"ballend","diameter":6,"length":50,"cutting_edge_height":20,"shank_diameter":6.0},
-	{"shape":"endmill","number":1,"cutting_edge_height":12.000,"flutes":2,"name":"3 mm flat end mill","length":38.0,"diameter":3},
+	{"shape":"endmill","number":1,"cutting_edge_height":12.000,"flutes":2,"name":"3 mm flat end mill","length":38.0,"diameter":3,"max_stepdown":1.5},
 	{"number":2,"name":"60 degree V-bit","shape":"vbit","diameter":6.0,"length":40,"cutting_edge_angle":60,"cutting_edge_height":5,"tip_diameter":0.10},
 	{"number":3,"name":"5 mm drill","shape":"drill","diameter":5,"length":50,"tip_angle":118.0}]}`
 	var outs []string
@@ -81,6 +81,8 @@ func TestBadLibraries(t *testing.T) {
 		{"no length", `{"tools": [{"number": 1, "name": "x", "shape": "endmill", "diameter": 3, "cutting_edge_height": 12}]}`, "no length"},
 		{"unknown shape still checked", `{"tools": [{"number": 1, "name": "x", "shape": "laser", "diameter": 3, "length": 38, "flutes": 99}]}`, "flutes is 99; want 1 to 16"},
 		{"flutes 17", em(`, "flutes": 17`), "flutes is 17; want 1 to 16"},
+		{"max_stepdown 0", em(`, "max_stepdown": 0`), "max_stepdown is 0; want a number above 0"},
+		{"max_stepdown past the edge", em(`, "max_stepdown": 13`), "max_stepdown 13 is more than the cutting_edge_height 12"},
 		{"shank", em(`, "shank_diameter": 0`), "shank_diameter is 0; want a number above 0"},
 		{"negative tip", `{"tools": [{"number": 1, "name": "x", "shape": "vbit", "diameter": 6, "length": 40, "cutting_edge_angle": 60, "cutting_edge_height": 5, "tip_diameter": -1}]}`, "tip_diameter is -1; want 0 or more"},
 		{"edge angle", `{"tools": [{"number": 1, "name": "x", "shape": "chamfer", "diameter": 6, "length": 40, "cutting_edge_angle": 200, "cutting_edge_height": 5, "tip_diameter": 0}]}`, "cutting_edge_angle is 200 degrees; want less than 180"},

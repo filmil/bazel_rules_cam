@@ -43,6 +43,9 @@ type Tool struct {
 	TipAngle          *float64 `json:"tip_angle,omitempty"`
 	CuttingEdgeAngle  *float64 `json:"cutting_edge_angle,omitempty"`
 	TipDiameter       *float64 `json:"tip_diameter,omitempty"`
+	// MaxStepdown is the deepest cut the tool may take, for
+	// gcode_check_test; FreeCAD does not read it.
+	MaxStepdown *float64 `json:"max_stepdown,omitempty"`
 }
 
 // Library is the whole file.
@@ -54,12 +57,12 @@ type Library struct {
 // and length, and the ones it may have. The names are FreeCAD's tool bit
 // shapes (Mod/CAM/Tools/Shape/<name>.fcstd), with v-bit spelled vbit.
 var Shapes = map[string]struct{ Need, May []string }{
-	"endmill":  {Need: []string{"cutting_edge_height"}, May: []string{"shank_diameter", "flutes"}},
-	"ballend":  {Need: []string{"cutting_edge_height"}, May: []string{"shank_diameter", "flutes"}},
-	"bullnose": {Need: []string{"cutting_edge_height", "corner_radius"}, May: []string{"shank_diameter", "flutes"}},
-	"drill":    {Need: []string{"tip_angle"}, May: []string{"shank_diameter", "flutes"}},
-	"vbit":     {Need: []string{"cutting_edge_angle", "cutting_edge_height", "tip_diameter"}, May: []string{"shank_diameter", "flutes"}},
-	"chamfer":  {Need: []string{"cutting_edge_angle", "cutting_edge_height", "tip_diameter"}, May: []string{"shank_diameter", "flutes"}},
+	"endmill":  {Need: []string{"cutting_edge_height"}, May: []string{"shank_diameter", "flutes", "max_stepdown"}},
+	"ballend":  {Need: []string{"cutting_edge_height"}, May: []string{"shank_diameter", "flutes", "max_stepdown"}},
+	"bullnose": {Need: []string{"cutting_edge_height", "corner_radius"}, May: []string{"shank_diameter", "flutes", "max_stepdown"}},
+	"drill":    {Need: []string{"tip_angle"}, May: []string{"shank_diameter", "flutes", "max_stepdown"}},
+	"vbit":     {Need: []string{"cutting_edge_angle", "cutting_edge_height", "tip_diameter"}, May: []string{"shank_diameter", "flutes", "max_stepdown"}},
+	"chamfer":  {Need: []string{"cutting_edge_angle", "cutting_edge_height", "tip_diameter"}, May: []string{"shank_diameter", "flutes", "max_stepdown"}},
 }
 
 // ShapeNames is the sorted list of shapes, for messages.
@@ -81,6 +84,7 @@ func (t *Tool) present() map[string]bool {
 		"tip_angle":           t.TipAngle != nil,
 		"cutting_edge_angle":  t.CuttingEdgeAngle != nil,
 		"tip_diameter":        t.TipDiameter != nil,
+		"max_stepdown":        t.MaxStepdown != nil,
 	}
 }
 
@@ -192,7 +196,7 @@ func Check(l *Library) []string {
 		}{
 			{"diameter", t.Diameter}, {"length", t.Length}, {"cutting_edge_height", t.CuttingEdgeHeight},
 			{"shank_diameter", t.ShankDiameter}, {"corner_radius", t.CornerRadius}, {"tip_angle", t.TipAngle},
-			{"cutting_edge_angle", t.CuttingEdgeAngle},
+			{"cutting_edge_angle", t.CuttingEdgeAngle}, {"max_stepdown", t.MaxStepdown},
 		} {
 			positive(&errs, who, p.n, p.v)
 		}
@@ -216,6 +220,9 @@ func Check(l *Library) []string {
 			r := *t.Diameter / 2
 			if t.CuttingEdgeHeight != nil && *t.CuttingEdgeHeight > *t.Length {
 				errs = append(errs, fmt.Sprintf("%s: cutting_edge_height %g is more than the length %g", who, *t.CuttingEdgeHeight, *t.Length))
+			}
+			if t.MaxStepdown != nil && t.CuttingEdgeHeight != nil && *t.MaxStepdown > *t.CuttingEdgeHeight {
+				errs = append(errs, fmt.Sprintf("%s: max_stepdown %g is more than the cutting_edge_height %g", who, *t.MaxStepdown, *t.CuttingEdgeHeight))
 			}
 			if t.CornerRadius != nil && *t.CornerRadius > 0 && *t.CornerRadius >= r {
 				errs = append(errs, fmt.Sprintf("%s: corner_radius %g; want less than the radius %g (a ballend has that)", who, *t.CornerRadius, r))
@@ -247,7 +254,7 @@ func Canonical(l *Library) ([]byte, error) {
 		t := &tools[i]
 		// -0 and 0 are one value; JSON would write them apart.
 		for _, p := range []**float64{&t.Diameter, &t.Length, &t.CuttingEdgeHeight, &t.ShankDiameter,
-			&t.CornerRadius, &t.TipAngle, &t.CuttingEdgeAngle, &t.TipDiameter} {
+			&t.CornerRadius, &t.TipAngle, &t.CuttingEdgeAngle, &t.TipDiameter, &t.MaxStepdown} {
 			if *p != nil && **p == 0 {
 				z := 0.0
 				*p = &z

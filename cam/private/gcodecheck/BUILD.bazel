@@ -5,7 +5,10 @@ load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 # G-code against its machine, stock and tool library.
 go_library(
     name = "gcodecheck",
-    srcs = ["gcodecheck.go"],
+    srcs = [
+        "depth.go",
+        "gcodecheck.go",
+    ],
     importpath = "github.com/filmil/bazel_rules_cam/cam/private/gcodecheck",
     visibility = ["//visibility:private"],
 )
@@ -13,7 +16,10 @@ go_library(
 go_test(
     name = "gcodecheck_test",
     size = "small",
-    srcs = ["gcodecheck_test.go"],
+    srcs = [
+        "depth_test.go",
+        "gcodecheck_test.go",
+    ],
     embed = [":gcodecheck"],
     pure = "on",
 )

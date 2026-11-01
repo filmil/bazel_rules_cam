@@ -19,6 +19,11 @@
 //   - tool: a tool number that is not in the tool library. A post that
 //     cannot change tools (GRBL) writes the change as a comment, "( M6 T1
 //     )"; that counts too.
+//   - depth: a cutting move goes deeper into the stock than its tool may
+//     cut in one pass: its max_stepdown in the tool library, or else its
+//     diameter. The checker keeps a height map of the stock, lowered by
+//     every cutting move, so a pass in stock that earlier passes cut counts
+//     only its own depth. Drills are not checked.
 //   - unsupported: G-code this checker does not follow (arcs outside the
 //     XY plane or in R form, expressions, unknown words), so it cannot
 //     vouch for it.
@@ -80,8 +85,8 @@ type Result struct {
 }
 
 // Check reads the G-code and returns what it found.
-func Check(gcode string, m Machine, stock Stock, tools map[int]bool) Result {
-	c := &checker{m: m, stock: stock, tools: tools, motion: -1, absolute: true, scale: 1, used: map[int]bool{}}
+func Check(gcode string, m Machine, stock Stock, tools map[int]Tool) Result {
+	c := &checker{m: m, stock: stock, tools: tools, motion: -1, absolute: true, scale: 1, used: map[int]bool{}, hm: newHeights(stock)}
 	for i := 0; i < 3; i++ {
 		c.r.Min[i], c.r.Max[i] = math.Inf(1), math.Inf(-1)
 	}
@@ -109,7 +114,9 @@ type checker struct {
 	r        Result
 	m        Machine
 	stock    Stock
-	tools    map[int]bool
+	tools    map[int]Tool
+	tool     int      // the tool in the spindle, 0 none
+	hm       *heights // the stock as cut so far; nil without a stock
 	pos      [3]float64
 	known    [3]bool
 	motion   int     // 0 to 3, 81 to 83 or 73 (a drilling cycle), -1 none
@@ -127,7 +134,8 @@ func (c *checker) add(kind string, line int, format string, a ...any) {
 
 func (c *checker) useTool(n, line int) {
 	c.used[n] = true
-	if !c.tools[n] {
+	c.tool = n
+	if _, ok := c.tools[n]; !ok {
 		c.add("tool", line, "T%d is not in the tool library", n)
 	}
 }
@@ -272,6 +280,10 @@ func (c *checker) block(line int, raw string) {
 		c.moveTo(dest, destKnown)
 	case 1:
 		c.cut(line)
+		if c.known == [3]bool{true, true, true} && destKnown == c.known {
+			path, n := straight(c.pos, dest)
+			c.sweep(line, path, n)
+		}
 		c.moveTo(dest, destKnown)
 	case 2, 3:
 		if !hasIJ || hasR {
@@ -280,6 +292,10 @@ func (c *checker) block(line int, raw string) {
 			return
 		}
 		c.cut(line)
+		if c.known == [3]bool{true, true, true} && destKnown == c.known {
+			path, n := arc(c.pos, dest, ij, c.motion == 2)
+			c.sweep(line, path, n)
+		}
 		from, fromKnown := c.pos, c.known
 		c.moveTo(dest, destKnown)
 		if fromKnown[0] && fromKnown[1] {
