@@ -20,7 +20,7 @@ The prebuilt FreeCAD toolchain.
 
 hdlf_rules_cam registers it, so a user needs nothing to get FreeCAD
 1.1.4. The tree is the official AppImage, unpacked and
-pruned to `freecadcmd` and the CAM workbench (about 700 MB); it runs with no
+pruned to `freecadcmd` and the CAM workbench (about 754 MB unpacked); it runs with no
 display and no host libraries but glibc.
 
 The root module can pick another version that hdlf_rules_cam has a
