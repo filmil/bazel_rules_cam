@@ -167,3 +167,25 @@ func arc(a, b [3]float64, ij [2]float64, clockwise bool) (func(float64) [3]float
 		return [3]float64{cx + rr*math.Cos(ang), cy + rr*math.Sin(ang), a[2] + (b[2]-a[2])*t}
 	}, sweep*math.Max(r0, r1) + math.Abs(b[2]-a[2])
 }
+
+// cleared says whether the job has already cut away all the stock along a
+// rapid from a to b, down to the tool's bottom (within 0.001 mm): a rapid through air
+// it made, such as a helix's move to the center of the bore it cut. It
+// needs the stock and the tool; without them, nothing counts as cleared.
+func (c *checker) cleared(a, b [3]float64) bool {
+	if c.hm == nil {
+		return false
+	}
+	t, ok := c.tools[c.tool]
+	if !ok || !(t.Diameter > 0) {
+		return false
+	}
+	path, length := straight(a, b)
+	n := int(math.Ceil(length/c.hm.cell)) + 1
+	for k := 0; k <= n; k++ {
+		if c.hm.depth(path(float64(k)/float64(n)), t.Diameter/2) > 1e-3 {
+			return false
+		}
+	}
+	return true
+}
