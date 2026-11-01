@@ -112,8 +112,8 @@ func TestDepthPartialG3(t *testing.T) {
 		t.Fatal("8 mm passed")
 	}
 	// The plunge reports first; the arc, at the same depth, too.
-	if len(vs) != 2 {
-		t.Errorf("want the plunge and the arc: %v", vs)
+	if len(vs) != 2 || vs[0].Line != 6 || vs[1].Line != 7 {
+		t.Errorf("want the plunge (line 6) and the arc (line 7): %v", vs)
 	}
 }
 
@@ -143,11 +143,36 @@ func TestDepthTinyToolOnLargeStock(t *testing.T) {
 	ts := map[int]Tool{2: {Shape: "endmill", Diameter: 0.2, MaxStepdown: 0.1}}
 	g := "G21 G90\nM6 T2\nM3 S10000\nG0 Z20\nG0 X100.15 Y100.15\nG1 Z9 F100\nG1 X110.15 F300\nG0 Z20\n"
 	r := Check(g, Machine{Envelope: [3]float64{700, 700, 50}, MaxFeed: 1000, MaxSpindle: 20000}, big, ts)
-	found := false
+	// Both the plunge (line 6) and the cut across (line 7): the cut is
+	// checked against the stock before it, not as its own samples cut it.
+	lines := map[int]bool{}
 	for _, v := range r.Violations {
-		found = found || v.Kind == "depth"
+		if v.Kind == "depth" {
+			lines[v.Line] = true
+		}
 	}
-	if !found {
-		t.Errorf("a 1 mm cut with max_stepdown 0.1 passed: %v", r.Violations)
+	if !lines[6] || !lines[7] {
+		t.Errorf("want depth violations on lines 6 and 7: %v", r.Violations)
+	}
+}
+
+func TestDepthEndMillInDrillCycle(t *testing.T) {
+	// An end mill (3 mm, max_stepdown 2) run through a G81 cycle 8 mm deep
+	// into fresh stock: checked, unlike a drill.
+	ts := map[int]Tool{1: {Shape: "endmill", Diameter: 3, MaxStepdown: 2}}
+	g := "G21 G90\nM6 T1\nM3 S10000\nG0 Z20\nG0 X20 Y15\nG98 G81 X20 Y15 Z3 R12 F100\nG80\nG0 Z20\n"
+	if vs := depthViolations(t, g, ts); len(vs) == 0 {
+		t.Error("an end mill's 8 mm cycle passed")
+	}
+}
+
+func TestDepthPastDrilledHole(t *testing.T) {
+	// A hole drilled to Z 3; an end mill (max_stepdown 2) goes on to Z 0,
+	// 3 mm below the hole's bottom, and is caught.
+	ts := map[int]Tool{1: {Shape: "endmill", Diameter: 3, MaxStepdown: 2}, 2: {Shape: "drill", Diameter: 6}}
+	g := "G21 G90\nM6 T2\nM3 S3000\nG0 Z20\nG0 X20 Y15\nG98 G81 X20 Y15 Z3 R12 F100\nG80\nG0 Z20\n" +
+		"M6 T1\nM3 S10000\nG0 X20 Y15\nG0 Z12\nG1 Z0 F100\nG0 Z20\n"
+	if vs := depthViolations(t, g, ts); len(vs) == 0 {
+		t.Error("3 mm past the drilled bottom passed")
 	}
 }

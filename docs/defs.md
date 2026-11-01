@@ -77,7 +77,8 @@ op.StepDown = "0.5 mm"
 
 A profile based on a face also cuts from that face down: one based on a
 part's bottom face cuts it in a single full-depth pass. Base a profile
-through the part on its top face. `gcode_check_test`
+through the part on its top face, and set its `FinalDepth` (expression
+cleared) below the part's bottom. `gcode_check_test`
 catches a pass deeper than the tool takes (its `depth` check).
 
 ```python

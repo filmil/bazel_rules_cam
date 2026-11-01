@@ -342,7 +342,9 @@ func (c *checker) drill(line int, dest [3]float64, known [3]bool) {
 	c.moveTo(atR, k)
 	// The feed into the hole cuts the stock (and is checked, unless the
 	// tool is a drill), so a later pass that enters the hole finds it cut.
-	if k == [3]bool{true, true, true} {
+	// (A cycle whose R plane is below its bottom is malformed; it cuts
+	// nothing here.)
+	if k == [3]bool{true, true, true} && atR[2] >= hole[2] {
 		path, n := straight(atR, hole)
 		c.sweep(line, path, n)
 	}

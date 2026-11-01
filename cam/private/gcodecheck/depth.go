@@ -89,10 +89,10 @@ func (m *heights) depth(p [3]float64, r float64) float64 {
 
 // stamp cuts the stock under the tool. It cuts half a cell wider than the
 // tool, so that a pass that repeats an earlier one's path, give or take a
-// rounding, does not find the cells on its rim uncut; the next sample, a
-// cell on, still meets the stock ahead of it. The price: a pass beside an
-// earlier one may hide up to half a cell of its shoulder (0.025 mm on
-// stock up to 100 mm across).
+// rounding, does not find the cells on its rim uncut. A move is checked
+// whole before it cuts (sweep), so its own stamps never hide stock ahead
+// of it. The price: a later pass beside an earlier one may not see up to
+// half a cell of its shoulder (0.025 mm on stock up to 100 mm across).
 func (m *heights) stamp(p [3]float64, r float64) {
 	z := float32(p[2])
 	m.disc(p[0], p[1], r+m.cell/2, func(i int) {
