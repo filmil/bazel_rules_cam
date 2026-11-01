@@ -76,7 +76,9 @@ op.StepDown = "0.5 mm"
 ```
 
 A profile based on a face also cuts from that face down: one based on a
-part's bottom face cuts it in a single full-depth pass. `gcode_check_test`
+part's bottom face cuts it in a single full-depth pass. Base a profile
+through the part on its top face, and set its `FinalDepth` (expression
+cleared) below the part's bottom. `gcode_check_test`
 catches a pass deeper than the tool takes (its `depth` check).
 
 ```python
@@ -361,10 +363,11 @@ dimensions, in mm and degrees:
 | `drill` | `tip_angle` |
 | `vbit`, `chamfer` | `cutting_edge_angle`, `cutting_edge_height`, `tip_diameter` |
 
-Every shape may also have `shank_diameter`, `flutes` and `max_stepdown`.
-`max_stepdown` is the deepest cut the tool may take in one pass, for
-`gcode_check_test`'s `depth` check (without it, the tool's diameter); it is
-not more than `cutting_edge_height`, and FreeCAD does not read it. The
+Every shape may also have `shank_diameter` and `flutes`, and every shape
+but `drill` a `max_stepdown`: the deepest cut the tool may take in one
+pass, for `gcode_check_test`'s `depth` check (without it, the tool's
+diameter). It is not more than `cutting_edge_height`, and FreeCAD does not
+read it. A drill plunges by design, and the check skips it. The
 build fails,
 naming each problem, on:
 

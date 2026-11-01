@@ -60,7 +60,9 @@ var Shapes = map[string]struct{ Need, May []string }{
 	"endmill":  {Need: []string{"cutting_edge_height"}, May: []string{"shank_diameter", "flutes", "max_stepdown"}},
 	"ballend":  {Need: []string{"cutting_edge_height"}, May: []string{"shank_diameter", "flutes", "max_stepdown"}},
 	"bullnose": {Need: []string{"cutting_edge_height", "corner_radius"}, May: []string{"shank_diameter", "flutes", "max_stepdown"}},
-	"drill":    {Need: []string{"tip_angle"}, May: []string{"shank_diameter", "flutes", "max_stepdown"}},
+	// A drill plunges by design: gcode_check_test does not check its depth,
+	// so it takes no max_stepdown.
+	"drill":    {Need: []string{"tip_angle"}, May: []string{"shank_diameter", "flutes"}},
 	"vbit":     {Need: []string{"cutting_edge_angle", "cutting_edge_height", "tip_diameter"}, May: []string{"shank_diameter", "flutes", "max_stepdown"}},
 	"chamfer":  {Need: []string{"cutting_edge_angle", "cutting_edge_height", "tip_diameter"}, May: []string{"shank_diameter", "flutes", "max_stepdown"}},
 }

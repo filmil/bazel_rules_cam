@@ -54,10 +54,11 @@ dimensions, in mm and degrees:
 | `drill` | `tip_angle` |
 | `vbit`, `chamfer` | `cutting_edge_angle`, `cutting_edge_height`, `tip_diameter` |
 
-Every shape may also have `shank_diameter`, `flutes` and `max_stepdown`.
-`max_stepdown` is the deepest cut the tool may take in one pass, for
-`gcode_check_test`'s `depth` check (without it, the tool's diameter); it is
-not more than `cutting_edge_height`, and FreeCAD does not read it. The
+Every shape may also have `shank_diameter` and `flutes`, and every shape
+but `drill` a `max_stepdown`: the deepest cut the tool may take in one
+pass, for `gcode_check_test`'s `depth` check (without it, the tool's
+diameter). It is not more than `cutting_edge_height`, and FreeCAD does not
+read it. A drill plunges by design, and the check skips it. The
 build fails,
 naming each problem, on:
 
