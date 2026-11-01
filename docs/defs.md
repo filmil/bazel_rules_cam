@@ -7,9 +7,16 @@ Load every rule from this file:
 ```starlark
 load(
     "@hdlf_rules_cam//cam:defs.bzl",
+    "CamJobInfo",
+    "FreecadToolchainInfo",
+    "GCODE_CHECK_KINDS",
+    "MachineInfo",
+    "ToolLibraryInfo",
     "cam_job",
     "determinism_test",
     "freecad_toolchain",
+    "gcode_check_test",
+    "gcode_check_toolchain",
     "machine",
     "swap_test",
     "tool_library",
@@ -171,6 +178,93 @@ libraries and fonts are the only ones it loads.
 | <a id="freecad_toolchain-version"></a>version |  The FreeCAD version freecadcmd reports.   | String | required |  |
 
 
+<a id="gcode_check_test"></a>
+
+## gcode_check_test
+
+<pre>
+load("@hdlf_rules_cam//cam:defs.bzl", "gcode_check_test")
+
+gcode_check_test(<a href="#gcode_check_test-name">name</a>, <a href="#gcode_check_test-expect">expect</a>, <a href="#gcode_check_test-gcode">gcode</a>, <a href="#gcode_check_test-job">job</a>, <a href="#gcode_check_test-machine">machine</a>, <a href="#gcode_check_test-tools">tools</a>)
+</pre>
+
+Checks a job's G-code against its machine, its stock and its tool library.
+
+```starlark
+gcode_check_test(
+    name = "bracket_gcode_test",
+    job = ":bracket",
+)
+```
+
+The test fails, and its report names each problem, when:
+
+* `envelope`: on some axis, the moves (arcs included) span more than the
+  machine's travel. The G-code is in the part's coordinates, and where
+  the part sits on the machine is the operator's choice, so this checks
+  that the job fits;
+* `rapid`: a rapid move (G0) goes down to, or across at, a height below
+  the stock's top while over the stock (a rapid straight up, out of a
+  cut, is fine);
+* `feed`: a feed rate above the machine's `max_feed`, or a cutting move
+  with no feed rate;
+* `spindle`: a spindle speed above the machine's `max_spindle`;
+* `tool`: a tool number not in the tool library (GRBL's tool change,
+  written as a comment, counts);
+* `unsupported`: G-code the checker does not follow (arcs outside the XY
+  plane, words it does not know), so it cannot vouch for the job.
+
+The report is in the test's output and in its undeclared outputs
+(`gcode_check_report.txt`). `machine`, `tools` and `gcode` check the job
+against something else than what it was made with: another machine, or
+a fixture. `expect` makes it a known-bad test (spec T3): it passes when
+every violation is of that kind.
+
+A person checks G-code before a machine runs it.
+
+**ATTRIBUTES**
+
+
+| Name  | Description | Type | Mandatory | Default |
+| :------------- | :------------- | :------------- | :------------- | :------------- |
+| <a id="gcode_check_test-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
+| <a id="gcode_check_test-expect"></a>expect |  Pass only when there are violations, all of this kind.   | String | optional |  `""`  |
+| <a id="gcode_check_test-gcode"></a>gcode |  Check this G-code instead of the job's: a fixture.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
+| <a id="gcode_check_test-job"></a>job |  The job (`cam_job`).   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
+| <a id="gcode_check_test-machine"></a>machine |  Check against this machine instead of the job's.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
+| <a id="gcode_check_test-tools"></a>tools |  Check against this tool library instead of the job's.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
+
+
+<a id="gcode_check_toolchain"></a>
+
+## gcode_check_toolchain
+
+<pre>
+load("@hdlf_rules_cam//cam:defs.bzl", "gcode_check_toolchain")
+
+gcode_check_toolchain(<a href="#gcode_check_toolchain-name">name</a>, <a href="#gcode_check_toolchain-checker">checker</a>)
+</pre>
+
+A G-code checker, for `@hdlf_rules_cam//cam:gcode_check_toolchain_type`.
+
+hdlf_rules_cam registers its own, built from source. The checker runs as the
+test, and exits 0 when the G-code passes. Its arguments arrive in the
+environment variable `GCODE_CHECK_ARGS`, one per line, followed by any the
+test is given: `--gcode=G`, `--machine=M`, `--tools=T`, `--info=I` and
+`--expect=KIND`. The paths are runfiles paths, from the test's working
+directory. `M` is JSON: `{"envelope": [x, y, z], "max_feed": ...,
+"max_spindle": ...}`; `T` is a canonical tool library; `I` is the job's
+`{"stock": {"XMin": ..., "ZMax": ...}}`.
+
+**ATTRIBUTES**
+
+
+| Name  | Description | Type | Mandatory | Default |
+| :------------- | :------------- | :------------- | :------------- | :------------- |
+| <a id="gcode_check_toolchain-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
+| <a id="gcode_check_toolchain-checker"></a>checker |  The checker binary.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
+
+
 <a id="machine"></a>
 
 ## machine
@@ -321,6 +415,28 @@ read its `FreecadToolchainInfo`.
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="tool_toolchain-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
 | <a id="tool_toolchain-tools"></a>tools |  Executable targets, each mapped to the name rules use for it.   | <a href="https://bazel.build/rules/lib/core/dict">Dictionary: Label -> String</a> | required |  |
+
+
+<a id="CamJobInfo"></a>
+
+## CamJobInfo
+
+<pre>
+load("@hdlf_rules_cam//cam:defs.bzl", "CamJobInfo")
+
+CamJobInfo(<a href="#CamJobInfo-gcode">gcode</a>, <a href="#CamJobInfo-info">info</a>, <a href="#CamJobInfo-machine">machine</a>, <a href="#CamJobInfo-tools">tools</a>)
+</pre>
+
+A cam_job's G-code and what it was made for.
+
+**FIELDS**
+
+| Name  | Description |
+| :------------- | :------------- |
+| <a id="CamJobInfo-gcode"></a>gcode |  File: the G-code.    |
+| <a id="CamJobInfo-info"></a>info |  File: JSON with the job's stock box, in the G-code's coordinates.    |
+| <a id="CamJobInfo-machine"></a>machine |  The MachineInfo of the job's machine.    |
+| <a id="CamJobInfo-tools"></a>tools |  File: the canonical tool library.    |
 
 
 <a id="FreecadToolchainInfo"></a>

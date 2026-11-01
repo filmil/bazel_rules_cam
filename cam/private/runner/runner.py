@@ -8,7 +8,8 @@ sys.exit(1) fails the action. $CAM_JOB_CONFIG names a JSON file:
      script, "out": G-code to write,
      "stock": {"x": mm, "y": mm, "z_top": mm, "z_bottom": mm},
      "machine": {"max_feed": mm/min, "max_spindle": rpm, "post": name},
-     "label": the target, for messages}
+     "info": where to write the job's facts for gcode_check_test (the
+     stock's box), "label": the target, for messages}
 
 The operations script defines operations(job, model, tools): `model` is
 the job's copy of the part, `tools` maps each tool number of the library
@@ -288,6 +289,15 @@ def main():
     gcode = post(job, cfg["machine"]["post"])
     with open(cfg["out"], "w") as f:
         f.write(gcode)
+    # What gcode_check_test needs to know about the job: the stock's box,
+    # in the G-code's coordinates.
+    bb = job.Stock.Shape.BoundBox
+    info = {
+        "stock": {k: round(getattr(bb, k), 6) for k in ("XMin", "XMax", "YMin", "YMax", "ZMin", "ZMax")},
+    }
+    with open(cfg["info"], "w") as f:
+        json.dump(info, f, indent=2, sort_keys=True)
+        f.write("\n")
 
 
 if __name__ == "__main__":

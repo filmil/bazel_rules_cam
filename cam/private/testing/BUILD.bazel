@@ -2,7 +2,7 @@
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@rules_go//go:def.bzl", "go_test")
-load("//cam:defs.bzl", "cam_job", "determinism_test", "machine", "swap_test", "tool_library")
+load("//cam:defs.bzl", "cam_job", "determinism_test", "gcode_check_test", "machine", "swap_test", "tool_library")
 load(":testing.bzl", "cam_job_failure_test", "fails_test", "freecad_step")
 
 bzl_library(
@@ -191,5 +191,95 @@ swap_test(
             {"y": "lots"},
             "stock y \"lots\": want a number of mm, 0 or more",
         ),
+    ]
+]
+
+# gcode_check_test (issue #10): the plate jobs pass against their own
+# machines; each known-bad (spec T3) checks the same G-code against a
+# stricter machine, a library without its tool, or a fixture, and must find
+# that one kind of violation. "feed" is the M5 exit test.
+[
+    gcode_check_test(
+        name = "plate_%s_gcode_test" % post,
+        size = "small",
+        job = ":plate_" + post,
+    )
+    for post in [
+        "grbl",
+        "linuxcnc",
+    ]
+]
+
+gcode_check_test(
+    name = "plate_tagged_gcode_test",
+    size = "small",
+    job = ":plate_tagged",
+)
+
+[
+    machine(
+        name = name,
+        envelope = envelope,
+        max_feed = feed,
+        max_spindle = spindle,
+        post = "linuxcnc",
+    )
+    for name, envelope, feed, spindle in [
+        (
+            "slow_feed_router",
+            [
+                "400",
+                "300",
+                "75",
+            ],
+            "500",
+            "24000",
+        ),
+        (
+            "slow_spindle_router",
+            [
+                "400",
+                "300",
+                "75",
+            ],
+            "5000",
+            "10000",
+        ),
+        (
+            "tiny_router",
+            [
+                "30",
+                "300",
+                "75",
+            ],
+            "5000",
+            "24000",
+        ),
+    ]
+]
+
+tool_library(
+    name = "no_t1_tools",
+    src = "no_t1_tools.json",
+)
+
+[
+    gcode_check_test(
+        name = name + "_gcode_test",
+        size = "small",
+        expect = expect,
+        gcode = gcode,
+        job = ":plate_linuxcnc",
+        machine = machine_,
+        tools = tools_,
+    )
+    for name, expect, machine_, tools_, gcode in [
+        ("feed_above_limit", "feed", ":slow_feed_router", None, None),
+        ("spindle_above_limit", "spindle", ":slow_spindle_router", None, None),
+        ("outside_envelope", "envelope", ":tiny_router", None, None),
+        ("unknown_tool", "tool", None, ":no_t1_tools", None),
+        ("rapid_into_stock", "rapid", None, None, "rapid_into_stock.ngc"),
+        ("cut_without_feed", "feed", None, None, "no_feed.ngc"),
+        ("unsupported_plane", "unsupported", None, None, "unsupported.ngc"),
     ]
 ]
