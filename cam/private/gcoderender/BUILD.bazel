@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: Apache-2.0
+load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+# gcode_render's drawer (issue #35), built from source: a job's toolpath
+# as PNGs and a Markdown report. It reads the G-code through gcodecheck.
+go_library(
+    name = "gcoderender",
+    srcs = ["gcoderender.go"],
+    importpath = "github.com/filmil/bazel_rules_cam/cam/private/gcoderender",
+    visibility = ["//visibility:private"],
+    deps = ["//cam/private/gcodecheck"],
+)
+
+go_test(
+    name = "gcoderender_test",
+    size = "small",
+    srcs = ["gcoderender_test.go"],
+    embed = [":gcoderender"],
+    pure = "on",
+    deps = ["//cam/private/gcodecheck"],
+)
+
+go_binary(
+    name = "cmd",
+    srcs = ["cmd/main.go"],
+    pure = "on",
+    visibility = ["//cam/toolchains:__pkg__"],
+    deps = [
+        ":gcoderender",
+        "//cam/private/gcodecheck",
+    ],
+)

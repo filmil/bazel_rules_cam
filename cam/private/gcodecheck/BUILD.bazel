@@ -10,7 +10,7 @@ go_library(
         "gcodecheck.go",
     ],
     importpath = "github.com/filmil/bazel_rules_cam/cam/private/gcodecheck",
-    visibility = ["//visibility:private"],
+    visibility = ["//cam/private/gcoderender:__pkg__"],
 )
 
 go_test(

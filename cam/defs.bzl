@@ -16,6 +16,7 @@ load(
     "freecad_toolchain",
     "gcode_check_test",
     "gcode_check_toolchain",
+    "gcode_render",
     "machine",
     "swap_test",
     "tool_library",
@@ -41,6 +42,7 @@ load(
     _gcode_check_test = "gcode_check_test",
     _gcode_check_toolchain = "gcode_check_toolchain",
 )
+load("//cam/private:gcode_render.bzl", _gcode_render = "gcode_render")
 load("//cam/private:machine.bzl", _MachineInfo = "MachineInfo", _machine = "machine")
 load("//cam/private:swap_test.bzl", _swap_test = "swap_test")
 load("//cam/private:tool_library.bzl", _ToolLibraryInfo = "ToolLibraryInfo", _tool_library = "tool_library")
@@ -50,6 +52,7 @@ cam_job = _cam_job
 CamJobInfo = _CamJobInfo
 gcode_check_test = _gcode_check_test
 gcode_check_toolchain = _gcode_check_toolchain
+gcode_render = _gcode_render
 GCODE_CHECK_KINDS = _GCODE_CHECK_KINDS
 determinism_test = _determinism_test
 freecad_toolchain = _freecad_toolchain

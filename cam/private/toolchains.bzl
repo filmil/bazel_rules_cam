@@ -27,17 +27,20 @@ def _helpers_toolchain_impl(ctx):
         # Tools that rules run in actions through run_tool, so built for the
         # execution platform: tool_library's checker (issue #8).
         "toolcheck": ctx.attr.toolcheck[DefaultInfo].files_to_run,
+        # gcode_render's drawer (issue #35).
+        "gcoderender": ctx.attr.gcoderender[DefaultInfo].files_to_run,
     })]
 
 helpers_toolchain = rule(
     implementation = _helpers_toolchain_impl,
-    doc = "The helpers toolchain: the launcher, the swap checker, the determinism comparer " +
-          "and tool_library's checker.",
+    doc = "The helpers toolchain: the launcher, the swap checker, the determinism comparer, " +
+          "tool_library's checker and gcode_render's drawer.",
     attrs = {
         "launcher": attr.label(mandatory = True, executable = True, cfg = "exec"),
         "swapcheck": attr.label(mandatory = True, executable = True, cfg = "target"),
         "compare": attr.label(mandatory = True, executable = True, cfg = "target"),
         "toolcheck": attr.label(mandatory = True, executable = True, cfg = "exec"),
+        "gcoderender": attr.label(mandatory = True, executable = True, cfg = "exec"),
     },
 )
 
