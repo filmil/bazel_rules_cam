@@ -120,10 +120,10 @@ jobs:
           fi
           grep -F "hdlf_rules_cam v1 supports only Linux x86_64 hosts" "${HOME}/p1.log"
 
-      # Fails when a dependency is only in the filmil registry: the BCR
-      # would then reject the module.
-      - name: Dependencies resolve from the BCR alone
-        run: bazel --ignore_all_rc_files mod graph --registry=https://bcr.bazel.build > /dev/null
+      # Fails when a dependency is in neither the filmil registry nor the
+      # BCR, or needs a local override.
+      - name: Dependencies resolve from the filmil registry and the BCR
+        run: bazel --ignore_all_rc_files mod graph --registry=https://raw.githubusercontent.com/filmil/bazel-registry/main --registry=https://bcr.bazel.build > /dev/null
 
   integration:
     runs-on: ubuntu-latest
@@ -175,12 +175,13 @@ jobs:
           restore-keys: |
             integration-${{ matrix.bazel }}-${{ steps.cachekey.outputs.day }}-
 
-      # The registry presubmit resolves this module from the BCR alone.
-      - name: Integration dependencies resolve from the BCR alone
+      # Every dependency resolves from the published registries: the
+      # filmil registry first, then the BCR.
+      - name: Integration dependencies resolve from the filmil registry and the BCR
         working-directory: integration
         env:
           USE_BAZEL_VERSION: ${{ matrix.bazel }}
-        run: bazel --ignore_all_rc_files mod graph --registry=https://bcr.bazel.build > /dev/null
+        run: bazel --ignore_all_rc_files mod graph --registry=https://raw.githubusercontent.com/filmil/bazel-registry/main --registry=https://bcr.bazel.build > /dev/null
 
       - name: Test the integration module with Bazel ${{ matrix.bazel }}
         working-directory: integration
