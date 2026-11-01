@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: Apache-2.0
+load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+# The FreeCAD prebuilt (spec "Prebuilts", issue #40): the operator makes the
+# tarball the FreeCAD toolchain pins with
+#   bazel run //tools:freecad_prebuilt -- --work=DIR [--upload]
+# from the official AppImage. It runs prebuilt.sh on the host, and stops if
+# the tarball is not the pinned bytes. No build runs it.
+
+go_library(
+    name = "freecad_prebuilt",
+    srcs = ["prebuilt.go"],
+    embedsrcs = ["prebuilt.sh"],
+    importpath = "github.com/filmil/bazel_rules_cam/tools/freecad_prebuilt",
+    visibility = ["//visibility:private"],
+)
+
+go_test(
+    name = "freecad_prebuilt_test",
+    size = "small",
+    srcs = ["prebuilt_test.go"],
+    data = ["//cam/private:extensions.bzl"],
+    embed = [":freecad_prebuilt"],
+    pure = "on",
+)
+
+go_library(
+    name = "cmd_lib",
+    srcs = ["cmd/main.go"],
+    importpath = "github.com/filmil/bazel_rules_cam/tools/freecad_prebuilt/cmd",
+    visibility = ["//visibility:private"],
+    deps = [":freecad_prebuilt"],
+)
+
+go_test(
+    name = "cmd_test",
+    size = "small",
+    srcs = ["cmd/main_test.go"],
+    embed = [":cmd_lib"],
+    pure = "on",
+    deps = [":freecad_prebuilt"],
+)
+
+go_binary(
+    name = "cmd",
+    embed = [":cmd_lib"],
+    pure = "on",
+    visibility = ["//tools:__pkg__"],
+)
