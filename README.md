@@ -21,7 +21,7 @@ Only Linux x86_64 hosts are supported.
 `MODULE.bazel`:
 
 ```starlark
-bazel_dep(name = "hdlf_rules_cam", version = "0.0.1")
+bazel_dep(name = "hdlf_rules_cam", version = "0.2.0")
 ```
 
 `.bazelrc`, while the module is only in the filmil registry:
@@ -160,8 +160,8 @@ person has checked it.
 
 The module registers a FreeCAD 1.1.4 toolchain, so a user installs
 nothing. Its tree is the official AppImage, unpacked without running it,
-then pruned to `freecadcmd` and the CAM workbench (169 MB download,
-742 MB unpacked). It runs with no display and loads no host library but
+then pruned to `freecadcmd` and the CAM workbench (177 MB download,
+about 754 MB unpacked). It runs with no display and loads no host library but
 glibc. Every action gives FreeCAD a private home, and drops the host's
 `PYTHON*`, `QT_*`, `LD_*`, `FREECAD*`, `FONTCONFIG_*` and `FC_*`
 variables. FreeCAD's Python
