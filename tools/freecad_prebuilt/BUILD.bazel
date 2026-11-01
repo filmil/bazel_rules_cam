@@ -24,10 +24,26 @@ go_test(
     pure = "on",
 )
 
+go_library(
+    name = "cmd_lib",
+    srcs = ["cmd/main.go"],
+    importpath = "github.com/filmil/bazel_rules_cam/tools/freecad_prebuilt/cmd",
+    visibility = ["//visibility:private"],
+    deps = [":freecad_prebuilt"],
+)
+
+go_test(
+    name = "cmd_test",
+    size = "small",
+    srcs = ["cmd/main_test.go"],
+    embed = [":cmd_lib"],
+    pure = "on",
+    deps = [":freecad_prebuilt"],
+)
+
 go_binary(
     name = "cmd",
-    srcs = ["cmd/main.go"],
+    embed = [":cmd_lib"],
     pure = "on",
     visibility = ["//tools:__pkg__"],
-    deps = [":freecad_prebuilt"],
 )
