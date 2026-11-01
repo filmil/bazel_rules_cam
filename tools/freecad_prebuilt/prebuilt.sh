@@ -58,9 +58,13 @@ done
 if [ "$DRY_RUN" = 0 ]; then
   gh auth status >/dev/null 2>&1 || die "gh is not logged in: run gh auth login"
 fi
-avail=$(df --output=avail -BG "$(dirname "$WORK")" | tail -1 | tr -dc 0-9)
-[ "$avail" -ge 8 ] || die "less than 8 GB free on $(dirname "$WORK")"
 mkdir -p "$WORK/dl" "$WORK/out"
+# The tree and the tarball need about 8 GB; a run whose tarball is already
+# made (an --upload after a first run, say) needs none.
+if [ ! -f "$WORK/out/freecad-${FREECAD_VERSION}-linux-x86_64.tar.xz" ]; then
+  avail=$(df --output=avail -BG "$WORK" | tail -1 | tr -dc 0-9)
+  [ "$avail" -ge 8 ] || die "less than 8 GB free on $WORK"
+fi
 
 step "download"
 APPIMAGE="$WORK/dl/$APPIMAGE_NAME"
@@ -231,13 +235,25 @@ EOF
   find "$TREE.part" -type d -name __pycache__ -prune -exec rm -rf {} +
   # -B: the modules compileall itself imports (re, operator, ...) must not
   # get timestamp .pyc files first; -f: compile every module regardless.
+  # compileall exits 1 when a module does not compile (some test modules of
+  # bundled packages are Python 2); the check below is what counts.
   env -i PATH=/usr/bin:/bin "$TREE.part/usr/bin/python" -I -B -m compileall -q -f -j 1 \
-      --invalidation-mode unchecked-hash -s "$TREE.part/" "$TREE.part/usr" >/dev/null || true
+      --invalidation-mode unchecked-hash -s "$TREE.part/" "$TREE.part/usr" > "$WORK/compileall.log" 2>&1 || true
   # Every module has its .pyc, and each is unchecked-hash (flags 1): Bazel
   # unpacks the tree with every mtime at 0, so Python would find a
   # timestamp .pyc stale and rewrite it inside the fetched repository.
-  [ "$(find "$TREE.part" -name '*.py' | wc -l)" = "$(find "$TREE.part" -name '*.pyc' | wc -l)" ] \
-    || die "compileall left modules without a .pyc"
+  # Each module has its own .pyc, not just as many .pyc files as modules.
+  # The tag (cpython-311) is the tree's Python's, not the host's.
+  tag=$(env -i PATH=/usr/bin:/bin "$TREE.part/usr/bin/python" -I -B -c 'import sys; print(sys.implementation.cache_tag)')
+  python3 -I - "$TREE.part" "$tag" <<'PYEOF' || die "compileall left modules without a .pyc; see $WORK/compileall.log"
+import os, sys
+root, tag = sys.argv[1], sys.argv[2]
+mods = [os.path.join(r, f) for r, _, fs in os.walk(root) for f in fs if f.endswith(".py")]
+missing = [m for m in mods if not os.path.exists(
+    os.path.join(os.path.dirname(m), "__pycache__", os.path.basename(m)[:-3] + "." + tag + ".pyc"))]
+print("\n".join(missing[:5]))
+sys.exit(1 if missing or not mods else 0)
+PYEOF
   python3 -I - "$TREE.part" <<'PYEOF' || die "some .pyc files are not unchecked-hash"
 import os, sys
 bad = [os.path.join(r, f) for r, _, fs in os.walk(sys.argv[1]) for f in fs
@@ -253,12 +269,15 @@ step "check"
 # The check must not write into the tree: if a .pyc were missing, Python
 # would write it here, and an action would do the same in Bazel.
 home=$(mktemp -d)
+trap 'rm -rf "$home"' EXIT
 touch "$home/stamp"
 v=$(env -i PATH=/usr/bin:/bin HOME="$home" "$TREE/usr/bin/freecadcmd" --version 2>&1 | tail -1)
-env -i PATH=/usr/bin:/bin HOME="$home" "$TREE/usr/bin/freecadcmd" -c \
-  "import Import, Part, Path.Main.Job, Path.Op.Profile, Path.Op.PocketShape, Path.Op.Drilling, Path.Post.Processor" >/dev/null 2>&1
+if ! out=$(env -i PATH=/usr/bin:/bin HOME="$home" "$TREE/usr/bin/freecadcmd" -c \
+  "import Import, Part, Path.Main.Job, Path.Op.Profile, Path.Op.PocketShape, Path.Op.Drilling, Path.Post.Processor" 2>&1); then
+  echo "$out" | tail -20 >&2
+  die "the pruned freecadcmd cannot import the CAM modules"
+fi
 changed=$(find "$TREE" -newer "$home/stamp" | head -3)
-rm -rf "$home"
 echo "$v"
 case "$v" in "FreeCAD $FREECAD_VERSION "*) ;; *) die "the pruned freecadcmd does not run: $v";; esac
 [ -z "$changed" ] || die "the check wrote into the tree: $changed; remove $TREE and run again"
@@ -279,13 +298,19 @@ if [ "$DRY_RUN" = 1 ]; then
   step "not uploading (give --upload)"
 else
   step "upload to $REPO release $TAG"
-  if ! git ls-remote --exit-code "https://github.com/$REPO" refs/heads/prebuilts >/dev/null 2>&1; then
+  rc=0
+  git ls-remote --exit-code "https://github.com/$REPO" refs/heads/prebuilts >/dev/null 2>&1 || rc=$?
+  # 2: no such branch. Anything else (network, auth) is an error, not a
+  # reason to create the branch.
+  [ "$rc" = 0 ] || [ "$rc" = 2 ] || die "git ls-remote https://github.com/$REPO failed ($rc)"
+  if [ "$rc" = 2 ]; then
     tmp=$(mktemp -d)
     git -C "$tmp" init -q
     git -C "$tmp" checkout -q --orphan prebuilts
     printf '# Prebuilt tool archives for rules_cam\n\nRelease assets only. The cam module extension pins each by sha256.\n' > "$tmp/README.md"
     git -C "$tmp" add README.md
-    git -C "$tmp" -c user.name=Claude -c user.email=noreply@anthropic.com commit -q -m "chore: branch for prebuilt release tags"
+    # The operator's own git identity makes the commit.
+    git -C "$tmp" commit -q -m "chore: branch for prebuilt release tags"
     git -C "$tmp" -c credential.helper= -c credential.helper='!gh auth git-credential' \
       push -q "https://github.com/$REPO" prebuilts
     rm -rf "$tmp"
