@@ -94,13 +94,30 @@ build_test(
     targets = [":plate_tagged"],
 )
 
-# The tagged job posts its outline once, through the tags (issue #36).
+# Two dressups on a Profile: only the outer one is posted (issue #36).
+cam_job(
+    name = "plate_nested",
+    machine = ":linuxcnc_router",
+    ops = "nested_ops.py",
+    part = ":plate",
+    tools = ":tools",
+)
+
+# Each dressed job posts its outline once, through its outer dressup
+# (issue #36). An argument is a job's G-code, "=", and the operations it
+# must post, in order.
 go_test(
     name = "dressup_test",
     size = "small",
     srcs = ["dressup_test.go"],
-    args = ["$(rootpath :plate_tagged)"],
-    data = [":plate_tagged"],
+    args = [
+        "'$(rootpath :plate_tagged)=Fixture,T1: 3 mm flat end mill,DressupTag'",
+        "'$(rootpath :plate_nested)=Fixture,T1: 3 mm flat end mill,DressupPathBoundary'",
+    ],
+    data = [
+        ":plate_nested",
+        ":plate_tagged",
+    ],
     pure = "on",
 )
 
