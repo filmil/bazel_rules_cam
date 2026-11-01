@@ -52,8 +52,9 @@ gcode_render(
 The outputs:
 
 * `<name>_top.png`: the toolpath seen from above;
-* `<name>_iso.png`: the same in an isometric view (X to the right and
-  down, Y to the left and down, Z up);
+* `<name>_iso.png`: the same in an isometric view from above, past the
+  origin's corner (X runs to the right and up the picture, Y to the left
+  and up, Z up);
 * `<name>.md`: per operation, its tools, the Z levels it cuts at, its
   deepest Z, its cut and rapid lengths, and an estimated time from the
   feeds (rapids at the machine's `max_feed`, no acceleration).

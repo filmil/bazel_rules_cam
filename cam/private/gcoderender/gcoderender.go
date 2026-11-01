@@ -43,8 +43,8 @@ type projection func(p [3]float64) (u, v float64)
 // Top looks down Z.
 func Top(p [3]float64) (float64, float64) { return p[0], p[1] }
 
-// Iso is the isometric view: X to the right and down, Y to the left and
-// down, Z up.
+// Iso is the isometric view from above, past the origin's corner: X runs
+// to the right and up the picture, Y to the left and up, Z up.
 func Iso(p [3]float64) (float64, float64) {
 	c, s := math.Cos(math.Pi/6), math.Sin(math.Pi/6)
 	return (p[0] - p[1]) * c, (p[0]+p[1])*s + p[2]
@@ -195,9 +195,22 @@ func Draw(r gcodecheck.Result, s gcodecheck.Stock, proj projection) []byte {
 		}
 	}
 	for _, g := range r.Path {
-		if !g.Rapid {
-			c.line(g.From, g.To, depthColor(math.Min(g.From[2], g.To[2]), s.ZMax, bottom), 2, 0)
+		if g.Rapid {
+			continue
 		}
+		// A move that crosses the stock's top (a plunge from above, say)
+		// is in air above it: that part takes the top's color.
+		a, b := g.From, g.To
+		if a[2] < b[2] {
+			a, b = b, a
+		}
+		if a[2] > s.ZMax && b[2] < s.ZMax {
+			t := (a[2] - s.ZMax) / (a[2] - b[2])
+			m := [3]float64{a[0] + (b[0]-a[0])*t, a[1] + (b[1]-a[1])*t, s.ZMax}
+			c.line(a, m, depthColor(s.ZMax, s.ZMax, bottom), 2, 0)
+			a = m
+		}
+		c.line(a, b, depthColor(math.Min(a[2], b[2]), s.ZMax, bottom), 2, 0)
 	}
 	var b bytes.Buffer
 	enc := png.Encoder{CompressionLevel: png.BestCompression}
@@ -207,28 +220,25 @@ func Draw(r gcodecheck.Result, s gcodecheck.Stock, proj projection) []byte {
 	return b.Bytes()
 }
 
-// opStats is what the report says of one operation.
+// opStats is what the report says of one operation: one run of moves
+// with the same operation name, in the order the job runs them.
 type opStats struct {
-	name                 string
-	tools                map[int]bool
-	levels               map[float64]bool
-	cut, rapid, minutes  float64
-	zmin                 float64
-	first                int
+	name                string
+	tools               map[int]bool
+	levels              map[float64]bool
+	cut, rapid, minutes float64
+	zmin                float64
 }
 
 // Report is the Markdown summary of the path. rapidFeed is the speed of a
 // rapid for the time estimate (the machine's max_feed), mm/min.
 func Report(name string, r gcodecheck.Result, s gcodecheck.Stock, tools map[int]gcodecheck.Tool, rapidFeed float64) string {
-	ops := map[string]*opStats{}
-	var order []string
+	var ops []*opStats
 	for _, g := range r.Path {
-		o := ops[g.Op]
-		if o == nil {
-			o = &opStats{name: g.Op, tools: map[int]bool{}, levels: map[float64]bool{}, zmin: math.Inf(1), first: g.Line}
-			ops[g.Op] = o
-			order = append(order, g.Op)
+		if len(ops) == 0 || ops[len(ops)-1].name != g.Op {
+			ops = append(ops, &opStats{name: g.Op, tools: map[int]bool{}, levels: map[float64]bool{}, zmin: math.Inf(1)})
 		}
+		o := ops[len(ops)-1]
 		l := math.Sqrt(sq(g.To[0]-g.From[0]) + sq(g.To[1]-g.From[1]) + sq(g.To[2]-g.From[2]))
 		if g.Rapid {
 			o.rapid += l
@@ -243,9 +253,10 @@ func Report(name string, r gcodecheck.Result, s gcodecheck.Stock, tools map[int]
 		}
 		o.tools[g.Tool] = true
 		o.zmin = math.Min(o.zmin, math.Min(g.From[2], g.To[2]))
-		// A level is a Z at which the tool moves across.
-		if math.Abs(g.From[2]-g.To[2]) < 1e-6 && math.Hypot(g.To[0]-g.From[0], g.To[1]-g.From[1]) > 1e-6 {
-			o.levels[math.Round(g.From[2]*1000)/1000] = true
+		// A level is a Z in the stock at which the tool moves across.
+		// (+0 turns a rounded -0 into 0.)
+		if math.Abs(g.From[2]-g.To[2]) < 1e-6 && math.Hypot(g.To[0]-g.From[0], g.To[1]-g.From[1]) > 1e-6 && g.From[2] < s.ZMax-1e-6 {
+			o.levels[math.Round(g.From[2]*1000)/1000+0] = true
 		}
 	}
 	var b strings.Builder
@@ -255,8 +266,7 @@ func Report(name string, r gcodecheck.Result, s gcodecheck.Stock, tools map[int]
 	fmt.Fprintf(&b, "| Operation | Tools | Levels (Z, mm) | Deepest Z | Cut (mm) | Rapid (mm) | Time (min) |\n")
 	fmt.Fprintf(&b, "|---|---|---|---|---|---|---|\n")
 	var total float64
-	for _, k := range order {
-		o := ops[k]
+	for _, o := range ops {
 		total += o.minutes
 		name := o.name
 		if name == "" {

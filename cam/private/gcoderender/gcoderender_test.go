@@ -5,6 +5,7 @@ package gcoderender
 import (
 	"bytes"
 	"image/png"
+	"math"
 	"strings"
 	"testing"
 
@@ -31,7 +32,9 @@ G1 X10
 G1 Z7 F200
 G1 X30 F600
 G0 Z16
-(Begin operation: Drill)
+(finish operation: Pocket)
+G0 X0 Y0
+(begin operation: Drill)
 G98 G81 X20 Y25 Z6 R12 F100
 G80
 G0 Z16
@@ -101,5 +104,64 @@ func TestReport(t *testing.T) {
 		if !strings.Contains(rep, want) {
 			t.Errorf("report lacks %q:\n%s", want, rep)
 		}
+	}
+}
+
+func TestReportRows(t *testing.T) {
+	// Two runs of one name stay two rows; a move between operations belongs
+	// to none; a feed above the stock is no level; an unknown tool is named
+	// bare; violations are flagged.
+	g := `G21 G90
+M6 T2
+M3 S12000
+(begin operation: Profile)
+G0 Z16
+G0 X10 Y10
+G1 X20 Y10 Z12 F600
+G1 Z10.0001 F200
+G1 X30 F600
+G0 Z16
+(finish operation: Profile)
+G0 X0 Y0
+(begin operation: Profile)
+G1 X10 Y10 Z9.5 F200
+G1 X30 F600
+G0 Z16
+`
+	r := gcodecheck.Check(g, machine, stock, map[int]gcodecheck.Tool{})
+	rep := Report("x", r, stock, map[int]gcodecheck.Tool{}, machine.MaxFeed)
+	rows := 0
+	for _, l := range strings.Split(rep, "\n") {
+		if strings.HasPrefix(l, "| Profile |") {
+			rows++
+			if !strings.Contains(l, "| T2 |") {
+				t.Errorf("unknown tool not named bare: %s", l)
+			}
+		}
+	}
+	if rows != 2 {
+		t.Errorf("want two Profile rows:\n%s", rep)
+	}
+	if !strings.Contains(rep, "| (none named) |") {
+		t.Errorf("the move between operations has no row:\n%s", rep)
+	}
+	if strings.Contains(rep, "| 12 |") || strings.Contains(rep, "12, ") || !strings.Contains(rep, "| 9.5 |") {
+		t.Errorf("levels above the stock listed, or the cut one missing:\n%s", rep)
+	}
+	if !strings.Contains(rep, "gcode_check finds") {
+		t.Errorf("violations (an unknown tool) not flagged:\n%s", rep)
+	}
+}
+
+func TestLevels(t *testing.T) {
+	m := map[float64]bool{}
+	for i := 0; i < 10; i++ {
+		m[float64(10-i)] = true
+	}
+	if got := levels(m); got != "10, 9, 8 ... 2, 1 (10)" {
+		t.Errorf("elided: %q", got)
+	}
+	if got := levels(map[float64]bool{math.Round(-0.0001*1000)/1000 + 0: true}); got != "0" {
+		t.Errorf("-0: %q", got)
 	}
 }

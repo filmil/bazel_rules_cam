@@ -104,7 +104,10 @@ type Segment struct {
 // ("Begin operation" in grbl, "begin operation" in linuxcnc).
 var opComment = regexp.MustCompile(`(?i)^\(?\s*begin operation:\s*(.*?)\s*$`)
 
-// arcPiece is the length of the straight pieces an arc is drawn with, mm.
+// opEnd is the comment after it; moves after it belong to no operation.
+var opEnd = regexp.MustCompile(`(?i)^\(?\s*finish operation:`)
+
+// arcPiece is the longest straight piece an arc is drawn with, mm.
 const arcPiece = 0.25
 
 // trace records a straight move from a to b, if both are known.
@@ -193,6 +196,8 @@ func (c *checker) block(line int, raw string) {
 	for _, cm := range comments {
 		if m := opComment.FindStringSubmatch(cm); m != nil {
 			c.op = m[1]
+		} else if opEnd.MatchString(cm) {
+			c.op = ""
 		}
 		for _, mt := range commentTool.FindAllStringSubmatch(cm, -1) {
 			n, _ := strconv.Atoi(mt[1] + mt[2])
@@ -337,7 +342,7 @@ func (c *checker) block(line int, raw string) {
 		if c.known == [3]bool{true, true, true} && destKnown == c.known {
 			path, n := arc(c.pos, dest, ij, c.motion == 2)
 			c.sweep(line, path, n)
-			pieces := int(math.Ceil(n/arcPiece)) + 1
+			pieces := max(int(math.Ceil(n/arcPiece)), 1)
 			for k := 0; k < pieces; k++ {
 				c.trace(line, path(float64(k)/float64(pieces)), c.known, path(float64(k+1)/float64(pieces)), destKnown, false)
 			}
