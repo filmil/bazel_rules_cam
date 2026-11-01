@@ -69,9 +69,12 @@ the change.
   number is mm/s. Do not use Adaptive clearing: its toolpath changes from
   run to run, and `cam_job` refuses it. Set each operation's
   `ToolController`.
-* **The FreeCAD prebuilt** is made by `make-freecad-prebuilt.sh`, which the
-  operator runs; a new FreeCAD version is a toolchain version change (rule
-  7), with the new tarball's sha256 from two separate runs.
+* **The FreeCAD prebuilt** is made by `bazel run //tools:freecad_prebuilt
+  -- --work=DIR` (`tools/freecad_prebuilt`), which the operator runs: it
+  unpacks the pinned AppImage without running it, prunes and precompiles
+  the tree, and stops unless the tarball is the pinned sha256. A new
+  FreeCAD version is a toolchain version change (rule 7), with the new
+  tarball's sha256 from two separate runs.
 * **Commits for a BCR pull request carry no `Co-Authored-By` trailer**
   (the `bazel-bcr-publish` skill says why). This is about the pull request
   on the Bazel Central Registry's repository that the release makes, not
