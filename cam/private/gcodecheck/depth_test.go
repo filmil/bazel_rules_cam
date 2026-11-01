@@ -216,3 +216,26 @@ func TestRapidNeedsTheTool(t *testing.T) {
 		t.Errorf("unknown tool: %v", ks)
 	}
 }
+
+func TestRapidIntoHelixIsland(t *testing.T) {
+	// A 16 mm bore with T2 (6 mm), orbiting at 5 mm: a 4 mm core is left
+	// standing. A rapid to the center at depth hits it.
+	g := "G21 G90\nM6 T2\nM3 S10000\nG0 Z20\nG0 X25 Y15\nG0 Z11\n" +
+		"G2 X25 Y15 Z10 I-5 J0 F300\nG2 X25 Y15 Z10 I-5 J0\n" +
+		"G0 X20 Y15 Z10\nG0 Z20\n"
+	if ks := Kinds(Check(g, machine, stock, tools)); len(ks) != 1 || ks[0] != "rapid" {
+		t.Errorf("a rapid into the bore's island: %v", ks)
+	}
+}
+
+func TestRapidFromUnknownHeight(t *testing.T) {
+	// The bore is cut, but the rapid down into it starts from an unknown
+	// height: the path is not known, so it is not vouched for.
+	c := &checker{stock: stock, tools: tools, tool: 2, hm: newHeights(stock)}
+	path, n := arc([3]float64{22, 15, 6}, [3]float64{22, 15, 6}, [2]float64{-2, 0}, true)
+	c.sweep(1, path, n)
+	c.rapid(2, [3]float64{20, 15, 0}, [3]bool{true, true, false}, [3]float64{20, 15, 6})
+	if ks := Kinds(c.r); len(ks) != 1 || ks[0] != "rapid" {
+		t.Errorf("unknown start height: %v", ks)
+	}
+}

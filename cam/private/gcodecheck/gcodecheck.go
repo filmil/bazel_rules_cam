@@ -13,7 +13,7 @@
 //   - rapid: a rapid move (G0) goes down to, or across at, a height below
 //     the stock's top while over the stock. A rapid straight up, out of a
 //     cut, is fine, and so is one whose whole path the job has already
-//     cut down to below the tool (the height map of the depth check): a
+//     cut down to the tool's bottom (within 0.001 mm) (the height map of the depth check): a
 //     helix's move to its bore's center, say.
 //   - feed: a feed rate above the machine's max_feed, or a cutting move
 //     with no feed rate.

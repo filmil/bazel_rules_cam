@@ -169,7 +169,7 @@ func arc(a, b [3]float64, ij [2]float64, clockwise bool) (func(float64) [3]float
 }
 
 // cleared says whether the job has already cut away all the stock along a
-// rapid from a to b, down to below the tool's bottom: a rapid through air
+// rapid from a to b, down to the tool's bottom (within 0.001 mm): a rapid through air
 // it made, such as a helix's move to the center of the bore it cut. It
 // needs the stock and the tool; without them, nothing counts as cleared.
 func (c *checker) cleared(a, b [3]float64) bool {
