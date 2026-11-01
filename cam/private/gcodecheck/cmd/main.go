@@ -44,15 +44,18 @@ func run(gcodePath, machinePath, toolsPath, infoPath, expect, reportPath string)
 	}
 	var lib struct {
 		Tools []struct {
-			Number int `json:"number"`
+			Number      int     `json:"number"`
+			Shape       string  `json:"shape"`
+			Diameter    float64 `json:"diameter"`
+			MaxStepdown float64 `json:"max_stepdown"`
 		} `json:"tools"`
 	}
 	if err := readJSON(toolsPath, &lib); err != nil {
 		return false, "", err
 	}
-	tools := map[int]bool{}
+	tools := map[int]gcodecheck.Tool{}
 	for _, t := range lib.Tools {
-		tools[t.Number] = true
+		tools[t.Number] = gcodecheck.Tool{Shape: t.Shape, Diameter: t.Diameter, MaxStepdown: t.MaxStepdown}
 	}
 	var info struct {
 		Stock gcodecheck.Stock `json:"stock"`

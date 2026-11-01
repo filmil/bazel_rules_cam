@@ -151,6 +151,20 @@ speed of each tool it uses. Give feeds with units: a plain number is mm/s.
 A dressup that reads its operation's toolpath (holding tags, say) needs
 `job.Document.recompute()` first.
 
+Depth properties (`StepDown`, `StartDepth`, `FinalDepth`) follow
+expressions: `StepDown` the tool's diameter, the depths the base
+geometry's heights. A plain assignment loses to the expression on the next
+recompute, silently. Clear it first:
+
+```python
+op.setExpression("StepDown", None)
+op.StepDown = "0.5 mm"
+```
+
+A profile based on a face also cuts from that face down: one based on a
+part's bottom face cuts it in a single full-depth pass. `gcode_check_test`
+catches a pass deeper than the tool takes (its `depth` check).
+
 ```python
 import Path.Op.PocketShape as PocketShape
 import Path.Op.Profile as Profile

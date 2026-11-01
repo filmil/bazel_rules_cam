@@ -7,7 +7,7 @@ load(":tool_library.bzl", "ToolLibraryInfo")
 
 GCODE_CHECK_TOOLCHAIN_TYPE = Label("//cam:gcode_check_toolchain_type")
 
-GCODE_CHECK_KINDS = ["envelope", "feed", "rapid", "spindle", "tool", "unsupported"]
+GCODE_CHECK_KINDS = ["depth", "envelope", "feed", "rapid", "spindle", "tool", "unsupported"]
 
 def _gcode_check_toolchain_impl(ctx):
     return [platform_common.ToolchainInfo(checker = ctx.attr.checker[DefaultInfo])]
@@ -84,6 +84,13 @@ The test fails, and its report names each problem, when:
 * `rapid`: a rapid move (G0) goes down to, or across at, a height below
   the stock's top while over the stock (a rapid straight up, out of a
   cut, is fine);
+* `depth`: a cutting move goes deeper into the stock than its tool may
+  cut in one pass: the tool's `max_stepdown` in the tool library, or else
+  its diameter. The checker keeps a height map of the stock that every
+  cutting move lowers, and measures each move against the stock as it was
+  before the move: a pass over stock that earlier passes cut counts only
+  its own depth, and a plunge, a ramp or a helix turn counts the depth it
+  reaches. Drills are not checked;
 * `feed`: a feed rate above the machine's `max_feed`, or a cutting move
   with no feed rate;
 * `spindle`: a spindle speed above the machine's `max_spindle`;
