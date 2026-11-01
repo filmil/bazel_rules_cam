@@ -340,6 +340,12 @@ func (c *checker) drill(line int, dest [3]float64, known [3]bool) {
 	k := known
 	k[2] = true
 	c.moveTo(atR, k)
+	// The feed into the hole cuts the stock (and is checked, unless the
+	// tool is a drill), so a later pass that enters the hole finds it cut.
+	if k == [3]bool{true, true, true} {
+		path, n := straight(atR, hole)
+		c.sweep(line, path, n)
+	}
 	c.moveTo(hole, k)
 	back := hole
 	back[2] = c.retract

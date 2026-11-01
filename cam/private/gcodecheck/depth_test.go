@@ -97,3 +97,57 @@ func TestDepthUnknownToolUnchecked(t *testing.T) {
 		}
 	}
 }
+
+func TestDepthPartialG3(t *testing.T) {
+	// A half circle counterclockwise at a fresh level 3 mm down, then the
+	// same at 8 mm down: within, then past, the 6 mm limit.
+	g := func(z float64) string {
+		return fmt.Sprintf("G21 G90\nM6 T2\nM3 S10000\nG0 Z20\nG0 X25 Y15\nG1 Z%g F100\nG3 X15 Y15 I-5 J0 F300\nG0 Z20\n", z)
+	}
+	if vs := depthViolations(t, g(8), tools); len(vs) != 0 {
+		t.Errorf("3 mm: %v", vs)
+	}
+	vs := depthViolations(t, g(3), tools)
+	if len(vs) == 0 {
+		t.Fatal("8 mm passed")
+	}
+	// The plunge reports first; the arc, at the same depth, too.
+	if len(vs) != 2 {
+		t.Errorf("want the plunge and the arc: %v", vs)
+	}
+}
+
+func TestDepthRamp(t *testing.T) {
+	// A ramp from the top to 7 mm down over 30 mm: it ends 7 mm deep.
+	g := "G21 G90\nM6 T2\nM3 S10000\nG0 Z20\nG0 X5 Y15\nG0 Z11\nG1 X35 Z4 F300\nG0 Z20\n"
+	if vs := depthViolations(t, g, tools); len(vs) == 0 {
+		t.Error("a ramp to 7 mm passed")
+	}
+}
+
+func TestDepthAfterDrillCycle(t *testing.T) {
+	// A 6 mm hole drilled 8 mm deep with a cycle, then T1, a 3 mm end mill
+	// that may cut 5 mm, plunges 8 mm down inside it: no stock in its way.
+	ts := map[int]Tool{1: {Shape: "endmill", Diameter: 3, MaxStepdown: 5}, 2: {Shape: "drill", Diameter: 6}}
+	g := "G21 G90\nM6 T2\nM3 S3000\nG0 Z20\nG0 X20 Y15\nG98 G81 X20 Y15 Z3 R12 F100\nG80\nG0 Z20\n" +
+		"M6 T1\nM3 S10000\nG0 X20 Y15\nG0 Z12\nG1 Z3 F100\nG0 Z20\n"
+	if vs := depthViolations(t, g, ts); len(vs) != 0 {
+		t.Errorf("end mill in a drilled hole: %v", vs)
+	}
+}
+
+func TestDepthTinyToolOnLargeStock(t *testing.T) {
+	// 600 mm stock: 0.3 mm cells. A 0.2 mm tool covers no cell's center
+	// but is still checked.
+	big := Stock{XMin: 0, XMax: 600, YMin: 0, YMax: 600, ZMin: 0, ZMax: 10}
+	ts := map[int]Tool{2: {Shape: "endmill", Diameter: 0.2, MaxStepdown: 0.1}}
+	g := "G21 G90\nM6 T2\nM3 S10000\nG0 Z20\nG0 X100.15 Y100.15\nG1 Z9 F100\nG1 X110.15 F300\nG0 Z20\n"
+	r := Check(g, Machine{Envelope: [3]float64{700, 700, 50}, MaxFeed: 1000, MaxSpindle: 20000}, big, ts)
+	found := false
+	for _, v := range r.Violations {
+		found = found || v.Kind == "depth"
+	}
+	if !found {
+		t.Errorf("a 1 mm cut with max_stepdown 0.1 passed: %v", r.Violations)
+	}
+}

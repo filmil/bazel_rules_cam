@@ -82,6 +82,7 @@ func TestBadLibraries(t *testing.T) {
 		{"unknown shape still checked", `{"tools": [{"number": 1, "name": "x", "shape": "laser", "diameter": 3, "length": 38, "flutes": 99}]}`, "flutes is 99; want 1 to 16"},
 		{"flutes 17", em(`, "flutes": 17`), "flutes is 17; want 1 to 16"},
 		{"max_stepdown 0", em(`, "max_stepdown": 0`), "max_stepdown is 0; want a number above 0"},
+		{"max_stepdown on a drill", `{"tools": [{"number": 1, "name": "x", "shape": "drill", "diameter": 3, "length": 38, "tip_angle": 118, "max_stepdown": 1}]}`, "shape drill has no max_stepdown"},
 		{"max_stepdown past the edge", em(`, "max_stepdown": 13`), "max_stepdown 13 is more than the cutting_edge_height 12"},
 		{"shank", em(`, "shank_diameter": 0`), "shank_diameter is 0; want a number above 0"},
 		{"negative tip", `{"tools": [{"number": 1, "name": "x", "shape": "vbit", "diameter": 6, "length": 40, "cutting_edge_angle": 60, "cutting_edge_height": 5, "tip_diameter": -1}]}`, "tip_diameter is -1; want 0 or more"},

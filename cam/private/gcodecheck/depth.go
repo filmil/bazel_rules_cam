@@ -46,11 +46,20 @@ func newHeights(s Stock) *heights {
 	return m
 }
 
-// disc calls f for each cell whose center is within r of (x, y).
+// disc calls f for each cell whose center is within r of (x, y). A tool
+// smaller than a cell can cover no cell's center; then it is the cell
+// under (x, y), so that no tool goes unchecked or cuts nothing.
 func (m *heights) disc(x, y, r float64, f func(i int)) {
 	if r <= 0 {
 		return
 	}
+	any := false
+	defer func() {
+		i, j := int(math.Floor((x-m.x0)/m.cell)), int(math.Floor((y-m.y0)/m.cell))
+		if !any && i >= 0 && i < m.nx && j >= 0 && j < m.ny {
+			f(j*m.nx + i)
+		}
+	}()
 	i0 := int(math.Floor((x - r - m.x0) / m.cell))
 	i1 := int(math.Floor((x + r - m.x0) / m.cell))
 	j0 := int(math.Floor((y - r - m.y0) / m.cell))
@@ -62,6 +71,7 @@ func (m *heights) disc(x, y, r float64, f func(i int)) {
 		for i := i0; i <= i1; i++ {
 			cx := m.x0 + (float64(i)+0.5)*m.cell - x
 			if cx*cx+cy*cy <= r*r {
+				any = true
 				f(j*m.nx + i)
 			}
 		}
@@ -80,7 +90,9 @@ func (m *heights) depth(p [3]float64, r float64) float64 {
 // stamp cuts the stock under the tool. It cuts half a cell wider than the
 // tool, so that a pass that repeats an earlier one's path, give or take a
 // rounding, does not find the cells on its rim uncut; the next sample, a
-// cell on, still meets the stock ahead of it.
+// cell on, still meets the stock ahead of it. The price: a pass beside an
+// earlier one may hide up to half a cell of its shoulder (0.025 mm on
+// stock up to 100 mm across).
 func (m *heights) stamp(p [3]float64, r float64) {
 	z := float32(p[2])
 	m.disc(p[0], p[1], r+m.cell/2, func(i int) {
