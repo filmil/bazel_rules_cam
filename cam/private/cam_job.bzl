@@ -149,7 +149,10 @@ to its FreeCAD tool controller. The script adds FreeCAD CAM operations
 operation gets the lowest-numbered tool), and sets the feeds and spindle
 speed of each tool it uses. Give feeds with units: a plain number is mm/s.
 A dressup that reads its operation's toolpath (holding tags, say) needs
-`job.Document.recompute()` first.
+`job.Document.recompute()` first. FreeCAD leaves the operation a dressup
+wraps in the job too; `cam_job` posts only the outermost dressup, not the
+operations under it (since 0.2.0; before, the bare operation was posted as
+well, and cut holding tags away).
 
 Depth properties (`StepDown`, `StartDepth`, `FinalDepth`) follow
 expressions: `StepDown` the tool's diameter, the depths the base

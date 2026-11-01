@@ -66,7 +66,7 @@ def swap_test(name, targets, **kwargs):
     ```starlark
     swap_test(
         name = "swap_test",
-        targets = [":gerbers", ":bom"],
+        targets = [":plate_gcode"],  # a cam_job
     )
     ```
 
