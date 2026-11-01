@@ -203,9 +203,12 @@ def drop_wrapped(job):
     """Takes out of the job's operations every one a dressup wraps.
 
     FreeCAD leaves a dressup's base operation in the job's group, and the
-    post would cut both: the base path, then the dressup's (issue #36). For
-    holding tags, the base path cuts the tags away. The dressup alone
-    carries the base path, dressed.
+    post would cut both: the dressup's path, then the bare base path (issue
+    #36). For holding tags, the bare path cuts the tags away. The dressup
+    alone posts the base path, dressed.
+
+    Objects are matched by Name, which is unique in a document; a Python
+    wrapper's id() is not a stable key.
     """
     wrapped = set()
     for op in job.Operations.Group:
@@ -213,8 +216,8 @@ def drop_wrapped(job):
         # dressups is [op, its base if a dressup, ...]: every object below
         # the top one is wrapped, the innermost operation too.
         for d in dressups:
-            wrapped.add(id(d.Base))
-    job.Operations.Group = [op for op in job.Operations.Group if id(op) not in wrapped]
+            wrapped.add(d.Base.Name)
+    job.Operations.Group = [op for op in job.Operations.Group if op.Name not in wrapped]
 
 
 def refuse(job):
