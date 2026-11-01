@@ -21,7 +21,7 @@ Only Linux x86_64 hosts are supported.
 `MODULE.bazel`:
 
 ```starlark
-bazel_dep(name = "hdlf_rules_cam", version = "0.1.0")
+bazel_dep(name = "hdlf_rules_cam", version = "0.0.1")
 ```
 
 `.bazelrc`, while the module is only in the filmil registry:
