@@ -94,6 +94,16 @@ build_test(
     targets = [":plate_tagged"],
 )
 
+# The tagged job posts its outline once, through the tags (issue #36).
+go_test(
+    name = "dressup_test",
+    size = "small",
+    srcs = ["dressup_test.go"],
+    args = ["$(rootpath :plate_tagged)"],
+    data = [":plate_tagged"],
+    pure = "on",
+)
+
 go_test(
     name = "gcode_test",
     size = "small",
