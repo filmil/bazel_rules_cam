@@ -220,8 +220,10 @@ The test fails, and its report names each problem, when:
   the part sits on the machine is the operator's choice, so this checks
   that the job fits;
 * `rapid`: a rapid move (G0) goes down to, or across at, a height below
-  the stock's top while over the stock (a rapid straight up, out of a
-  cut, is fine);
+  the stock's top while over the stock. A rapid straight up, out of a
+  cut, is fine, and so is one whose whole path the job has already cut
+  down to below the tool (from the `depth` check's height map), such as
+  the move of FreeCAD's Helix to its bore's center at full depth;
 * `depth`: a cutting move goes deeper into the stock than its tool may
   cut in one pass: the tool's `max_stepdown` in the tool library, or else
   its diameter. The checker keeps a height map of the stock that every

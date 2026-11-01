@@ -176,3 +176,43 @@ func TestDepthPastDrilledHole(t *testing.T) {
 		t.Error("3 mm past the drilled bottom passed")
 	}
 }
+
+// helixHole is FreeCAD's Helix for a 10 mm bore with T2 (6 mm): down 1 mm
+// a turn from the stock's top to Z 6, a flat turn at the bottom, then its
+// exit: a rapid to the bore's center at full depth, and up.
+const helixHole = "G21 G90\nM6 T2\nM3 S10000\nG0 Z20\nG0 X22 Y15\nG0 Z11\n" +
+	"G2 X22 Y15 Z10 I-2 J0 F300\nG2 X22 Y15 Z9 I-2 J0\nG2 X22 Y15 Z8 I-2 J0\nG2 X22 Y15 Z7 I-2 J0\nG2 X22 Y15 Z6 I-2 J0\n" +
+	"G2 X22 Y15 Z6 I-2 J0\n"
+
+func TestRapidInsideHelixBore(t *testing.T) {
+	g := helixHole + "G0 X20 Y15 Z6\nG0 Z20\n"
+	if vs := Check(g, machine, stock, tools).Violations; len(vs) != 0 {
+		t.Errorf("the helix's exit to its center: %v", vs)
+	}
+}
+
+func TestRapidOutOfHelixBore(t *testing.T) {
+	// The same, but the rapid leaves the bore sideways, into stock.
+	g := helixHole + "G0 X30 Y15 Z6\nG0 Z20\n"
+	if ks := Kinds(Check(g, machine, stock, tools)); len(ks) != 1 || ks[0] != "rapid" {
+		t.Errorf("a rapid out of the bore at depth: %v", ks)
+	}
+}
+
+func TestRapidBelowTheBoresBottom(t *testing.T) {
+	// A rapid down into the bore, past its bottom.
+	g := helixHole + "G0 X20 Y15 Z4\nG0 Z20\n"
+	if ks := Kinds(Check(g, machine, stock, tools)); len(ks) != 1 || ks[0] != "rapid" {
+		t.Errorf("a rapid below the bore's bottom: %v", ks)
+	}
+}
+
+func TestRapidNeedsTheTool(t *testing.T) {
+	// Without the tool in the library, nothing is cleared: the tool check
+	// and the rapid check both report.
+	g := helixHole + "G0 X20 Y15 Z6\nG0 Z20\n"
+	ks := Kinds(Check(g, machine, stock, map[int]Tool{}))
+	if len(ks) != 2 || ks[0] != "rapid" || ks[1] != "tool" {
+		t.Errorf("unknown tool: %v", ks)
+	}
+}

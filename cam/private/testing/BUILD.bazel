@@ -23,6 +23,11 @@ freecad_step(
 )
 
 freecad_step(
+    name = "holed_plate",
+    script = "holed_plate_part.py",
+)
+
+freecad_step(
     name = "two_parts",
     script = "two_parts.py",
 )
@@ -284,3 +289,30 @@ tool_library(
         ("unsupported_plane", "unsupported", None, None, "unsupported.ngc"),
     ]
 ]
+
+# FreeCAD's Helix leaves a small hole with a rapid to its center at full
+# depth, through the bore it has just cut: gcode_check_test accepts it
+# (issue #31).
+cam_job(
+    name = "helix_grbl",
+    machine = ":grbl_router",
+    ops = "helix_ops.py",
+    part = ":holed_plate",
+    stock = {
+        "x": "2",
+        "y": "2",
+    },
+    tools = ":tools",
+)
+
+gcode_check_test(
+    name = "helix_gcode_test",
+    size = "small",
+    job = ":helix_grbl",
+)
+
+determinism_test(
+    name = "helix_determinism_test",
+    size = "small",
+    target = ":helix_grbl",
+)

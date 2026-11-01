@@ -12,7 +12,9 @@
 //     travel.
 //   - rapid: a rapid move (G0) goes down to, or across at, a height below
 //     the stock's top while over the stock. A rapid straight up, out of a
-//     cut, is fine.
+//     cut, is fine, and so is one whose whole path the job has already
+//     cut down to below the tool (the height map of the depth check): a
+//     helix's move to its bore's center, say.
 //   - feed: a feed rate above the machine's max_feed, or a cutting move
 //     with no feed rate.
 //   - spindle: a spindle speed above the machine's max_spindle.
@@ -397,6 +399,9 @@ func (c *checker) rapid(line int, a [3]float64, aKnown [3]bool, b [3]float64) {
 	x1, y1 := p(t1)
 	if !clipHits(x0, y0, x1, y1, s.XMin-eps, s.XMax+eps, s.YMin-eps, s.YMax+eps) {
 		return
+	}
+	if aKnown == [3]bool{true, true, true} && c.cleared(a, b) {
+		return // through stock the job has already cut away
 	}
 	from := "an unknown height"
 	if aKnown[2] {
