@@ -37,3 +37,9 @@ numbers_test(
     name = "numbers_test",
     size = "small",
 )
+
+# tools/freecad_prebuilt checks that the sha256 it makes is the one pinned here.
+exports_files(
+    ["extensions.bzl"],
+    visibility = ["//tools/freecad_prebuilt:__pkg__"],
+)

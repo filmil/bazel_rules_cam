@@ -20,3 +20,11 @@ buildifier(
     lint_mode = "warn",
     mode = "check",
 )
+
+# bazel run //tools:freecad_prebuilt -- --work=DIR: makes the FreeCAD
+# prebuilt tarball from the AppImage and checks it is the pinned one
+# (tools/freecad_prebuilt).
+alias(
+    name = "freecad_prebuilt",
+    actual = "//tools/freecad_prebuilt:cmd",
+)

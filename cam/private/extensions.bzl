@@ -4,7 +4,8 @@
 # The prebuilt FreeCAD trees, by the version freecadcmd reports. Each is the
 # official AppImage of that version, unpacked without running it, pruned to
 # freecadcmd and the CAM workbench, and packed as a reproducible tarball by
-# make-freecad-prebuilt.sh. The release notes of each asset name the
+# `bazel run //tools:freecad_prebuilt` (tools/freecad_prebuilt), which
+# stops unless it makes the pinned bytes. The release notes of each asset name the
 # AppImage it came from and its sha256. Only this repository's release
 # hosts the tarball, so it has one URL.
 _FREECAD = {
