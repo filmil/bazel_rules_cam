@@ -199,6 +199,27 @@ def base_op(op):
     return op, seen
 
 
+def drop_wrapped(job):
+    """Takes out of the job's operations every one a dressup wraps.
+
+    FreeCAD leaves a dressup's base operation in the job's group, and the
+    post would cut both: the dressup's path, then the bare base path (issue
+    #36). For holding tags, the bare path cuts the tags away. The dressup
+    alone posts the base path, dressed.
+
+    Objects are matched by Name, which is unique in a document; a Python
+    wrapper's id() is not a stable key.
+    """
+    wrapped = set()
+    for op in job.Operations.Group:
+        _, dressups = base_op(op)
+        # dressups is [op, its base if a dressup, ...]: every object below
+        # the top one is wrapped, the innermost operation too.
+        for d in dressups:
+            wrapped.add(d.Base.Name)
+    job.Operations.Group = [op for op in job.Operations.Group if op.Name not in wrapped]
+
+
 def refuse(job):
     """Refuses the operations the job cannot vouch for, before any is
     computed: Adaptive would run, slowly, only to be refused."""
@@ -283,6 +304,7 @@ def main():
     # The stock and the tools as set, before the script reads them.
     doc.recompute()
     run_operations(cfg["ops"], job, job.Model.Group[0], tools)
+    drop_wrapped(job)
     refuse(job)
     doc.recompute()
     check(job, tools, cfg["machine"])
