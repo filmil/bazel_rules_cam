@@ -33,8 +33,9 @@ the change.
    `bazel run //:update_goldens`, and give the reason in the commit
    message.
 5. A change to a job or its part attaches the G-code check report to the
-   pull request: the report that `gcode_check_test` prints, from its test
-   log (`bazel-testlogs/<package>/<test>/test.log`).
+   pull request: the report that `gcode_check_test` prints into its test
+   log (`bazel-testlogs/<package>/<test>/test.log`), also kept as
+   `gcode_check_report.txt` in the test's `test.outputs/`.
 6. One logical change per pull request: one rule, one feature, or one
    design change.
 7. Stop and ask the operator before you:
@@ -69,6 +70,8 @@ the change.
   operator runs; a new FreeCAD version is a toolchain version change (rule
   7), with the new tarball's sha256 from two separate runs.
 * **Commits for a BCR pull request carry no `Co-Authored-By` trailer**
-  (the `bazel-bcr-publish` skill says why).
+  (the `bazel-bcr-publish` skill says why). This is about the pull request
+  on the Bazel Central Registry's repository that the release makes, not
+  about commits in this repository.
 
 `CLAUDE.md` and `GEMINI.md` are symlinks to this file.

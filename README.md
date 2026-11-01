@@ -70,7 +70,9 @@ cam_job(
     machine = ":router",
     ops = "bracket_ops.py",
     part = "bracket.step",
-    stock = {"x": "3", "y": "3", "z_top": "1"},  # margins around the part, mm
+    # Margins around the part, mm: x and y on each side, z_top above,
+    # z_bottom below; a missing key is 0.
+    stock = {"x": "3", "y": "3", "z_top": "1"},
     tools = ":tools",
 )
 
@@ -130,8 +132,10 @@ def operations(job, model, tools):
 ```
 
 `bazel build //:bracket` writes `bazel-bin/bracket.ngc`;
-`bazel test //:bracket_gcode_test` prints the check's report, and keeps
-it in the test's outputs as `gcode_check_report.txt`.
+`bazel test //:bracket_gcode_test` prints the check's report into the test
+log (`bazel-testlogs/bracket_gcode_test/test.log`), and keeps it as
+`gcode_check_report.txt` in the test's outputs
+(`bazel-testlogs/bracket_gcode_test/test.outputs/`).
 
 The build stops, with a message that names the problem, when:
 
@@ -142,9 +146,11 @@ The build stops, with a message that names the problem, when:
   toolpath;
 * a tool's feed or spindle speed is missing, or above the machine's limit.
 
-`gcode_check_test` then checks the G-code itself: every move within the
-machine's travel, no rapid move into the stock, feeds and spindle speeds
-within limits, and every tool in the library.
+`cam_job` checks the feeds and spindle speeds it sets against the machine
+before it posts. `gcode_check_test` then checks the G-code itself, as the
+post wrote it, and can check it against another machine too: every move
+within the machine's travel, no rapid move into the stock, feeds and
+spindle speeds within limits, and every tool in the library.
 
 Every rule is in [docs/defs.md](docs/defs.md), and the module extension in
 [docs/extensions.md](docs/extensions.md). No machine runs the G-code until a
@@ -203,11 +209,13 @@ See the overall description at the [project page][pp].
 
 This repository is under the Apache License 2.0 (`LICENSE`).
 The tools and libraries that the build downloads are listed here, with their
-versions, sources and licenses. FreeCAD's tree includes opencamlib
-(LGPL-2.1-or-later), numpy (BSD-3-Clause) and Qt 6 (LGPL-3.0); its
-`packages.txt` lists every package in it.
+versions, sources and licenses. FreeCAD's tree includes OpenCASCADE
+(LGPL-2.1 with an exception), opencamlib (LGPL-2.1-or-later), numpy
+(BSD-3-Clause) and Qt 6 (LGPL-3.0). Its `packages.txt`, at the top of the
+tree (`freecad/packages.txt` in the `freecad_toolchains` repository that the
+module extension makes), lists every package in it.
 
 | What | Version | Source | License |
 |---|---|---|---|
 | Go SDK (builds the helpers: the launcher, the tool library's checker, the G-code checker) | as rules_go 0.64.2 picks it | [go.dev/dl](https://go.dev/dl/), fetched by rules_go | BSD-3-Clause |
-| FreeCAD, pruned | 1.1.4 | [FreeCAD_1.1.4-Linux-x86_64-py311.AppImage](https://github.com/FreeCAD/FreeCAD/releases/tag/1.1.4), sha256 `f6dc6ba6…43434`; mirrored as the release asset [prebuilt-freecad-1.1.4](https://github.com/filmil/bazel_rules_cam/releases/tag/prebuilt-freecad-1.1.4) | LGPL-2.0-or-later; its bundled libraries under their own licenses, listed in the tree's `packages.txt` |
+| FreeCAD, pruned | 1.1.4 | [FreeCAD_1.1.4-Linux-x86_64-py311.AppImage](https://github.com/FreeCAD/FreeCAD/releases/tag/1.1.4), sha256 `f6dc6ba6…43434`; mirrored as the release asset [prebuilt-freecad-1.1.4](https://github.com/filmil/bazel_rules_cam/releases/tag/prebuilt-freecad-1.1.4) | LGPL-2.0-or-later; its bundled libraries under their own licenses, listed in `packages.txt` (above) |
