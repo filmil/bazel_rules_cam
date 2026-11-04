@@ -37,8 +37,8 @@ helpers_toolchain = rule(
           "tool_library's checker and gcode_render's drawer.",
     attrs = {
         "launcher": attr.label(mandatory = True, executable = True, cfg = "exec"),
-        "swapcheck": attr.label(mandatory = True, executable = True, cfg = "target"),
-        "compare": attr.label(mandatory = True, executable = True, cfg = "target"),
+        "swapcheck": attr.label(mandatory = True, executable = True, cfg = "exec"),
+        "compare": attr.label(mandatory = True, executable = True, cfg = "exec"),
         "toolcheck": attr.label(mandatory = True, executable = True, cfg = "exec"),
         "gcoderender": attr.label(mandatory = True, executable = True, cfg = "exec"),
     },
